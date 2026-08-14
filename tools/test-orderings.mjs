@@ -1,0 +1,212 @@
+/**
+ * Headless checks for the PyBullet column and the existing ordering rules.
+ * No extra packages: the IIFE scripts are eval'd against a stub `window`,
+ * and the kinematic trees are built by hand so we do not need a DOMParser.
+ *
+ *   node tools/test-orderings.mjs
+ */
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const window = {};
+for (const file of ['assets/js/urdf.js', 'assets/js/orderings.js']) {
+  new Function('window', readFileSync(resolve(root, file), 'utf8'))(window);
+}
+
+const { URDF, Orderings } = window;
+const out = [];
+let failed = 0;
+
+function eq(actual, expected, msg) {
+  const a = JSON.stringify(actual);
+  const e = JSON.stringify(expected);
+  if (a === e) {
+    out.push('ok   ' + msg);
+  } else {
+    failed++;
+    out.push('FAIL ' + msg);
+    out.push('     expected: ' + e);
+    out.push('     actual:   ' + a);
+  }
+}
+
+function namesOf(col) { return col.names; }
+
+function col(analysis, id) {
+  const found = analysis.columns.find((c) => c.id === id);
+  if (!found) throw new Error('missing column ' + id);
+  return found;
+}
+
+function J(name, type, parent, child) {
+  return { name, type, parent, child, mimic: null };
+}
+
+function modelFromJoints(joints, extra) {
+  const m = {
+    format: 'urdf',
+    robotName: 'test',
+    links: [],
+    joints,
+    jointByName: {},
+    ros2ControlJoints: [],
+    ros2ControlBlocks: [],
+    warnings: [],
+    errors: [],
+    looksLikeXacro: false
+  };
+  const links = new Set();
+  joints.forEach((j) => {
+    m.jointByName[j.name] = j;
+    links.add(j.parent);
+    links.add(j.child);
+  });
+  m.links = [...links].map((name) => ({ name, declared: true }));
+  return Object.assign(m, extra || {});
+}
+
+/* Quadruped: trunk → four legs hip/thigh/calf/foot, joints in FL,FR,RL,RR order. */
+function quadruped() {
+  const legs = ['FL', 'FR', 'RL', 'RR'];
+  const joints = [];
+  legs.forEach((p) => {
+    joints.push(J(p + '_hip_joint', 'revolute', 'trunk', p + '_hip'));
+    joints.push(J(p + '_thigh_joint', 'revolute', p + '_hip', p + '_thigh'));
+    joints.push(J(p + '_calf_joint', 'revolute', p + '_thigh', p + '_calf'));
+    joints.push(J(p + '_foot_fixed', 'fixed', p + '_calf', p + '_foot'));
+  });
+  return modelFromJoints(joints);
+}
+
+/* Mobile manipulator: wheels declared before the arm; arm_* sorts first alphabetically. */
+function mobile() {
+  const joints = [
+    J('drive_wheel_left', 'continuous', 'base_link', 'wheel_left'),
+    J('drive_wheel_right', 'continuous', 'base_link', 'wheel_right'),
+    J('arm_shoulder_pan', 'revolute', 'base_link', 'shoulder'),
+    J('arm_shoulder_lift', 'revolute', 'shoulder', 'upper_arm'),
+    J('arm_elbow', 'revolute', 'upper_arm', 'forearm'),
+    J('arm_wrist', 'revolute', 'forearm', 'wrist'),
+    J('gripper_mount', 'fixed', 'wrist', 'gripper_base'),
+    J('gripper_finger_left', 'prismatic', 'gripper_base', 'finger_left'),
+    J('gripper_finger_right', 'prismatic', 'gripper_base', 'finger_right')
+  ];
+  return modelFromJoints(joints, {
+    ros2ControlJoints: [
+      'arm_shoulder_pan', 'arm_shoulder_lift', 'arm_elbow', 'arm_wrist',
+      'gripper_finger_left', 'drive_wheel_left', 'drive_wheel_right'
+    ]
+  });
+}
+
+function serialArm() {
+  const joints = [];
+  let prev = 'base_link';
+  for (let i = 1; i <= 6; i++) {
+    joints.push(J('joint_' + i, i === 3 ? 'prismatic' : 'revolute', prev, 'link_' + i));
+    prev = 'link_' + i;
+  }
+  joints.push(J('tool_fixed_joint', 'fixed', 'link_6', 'tool0'));
+  return modelFromJoints(joints);
+}
+
+function run(model, opts) {
+  return Orderings.analyze(model, URDF.buildTree(model), opts || {});
+}
+
+const ids = Orderings.FRAMEWORKS.map((fw) => fw.id);
+eq(ids.indexOf('pybullet'), ids.indexOf('gazebo') + 1, 'PyBullet sits immediately after Gazebo');
+eq(ids.indexOf('ros2control'), ids.indexOf('pybullet') + 1, 'ros2_control sits immediately after PyBullet');
+
+const py = Orderings.FRAMEWORKS.find((fw) => fw.id === 'pybullet');
+eq(!!py.holdsFixed, true, 'PyBullet holds fixed joints');
+eq(!!py.holdsFreeBase, false, 'PyBullet does not list the floating base as a joint');
+eq(py.siblingOrder, 'document', 'PyBullet siblings follow document order');
+
+const quad = run(quadruped(), { showFixed: false });
+eq(namesOf(col(quad, 'pybullet')), namesOf(col(quad, 'isaacgym')),
+  'quadruped: PyBullet movable order matches Isaac Gym DFS');
+eq(namesOf(col(quad, 'pybullet')), [
+  'FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint',
+  'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint',
+  'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint',
+  'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint'
+], 'quadruped: PyBullet DFS walks each leg to the end');
+eq(
+  namesOf(col(quad, 'pybullet'))[0] === namesOf(col(quad, 'isaacsim'))[0] &&
+  namesOf(col(quad, 'pybullet'))[1] !== namesOf(col(quad, 'isaacsim'))[1],
+  true,
+  'quadruped: PyBullet DFS differs from Isaac Sim BFS after the first hip'
+);
+
+const quadFixed = run(quadruped(), { showFixed: true });
+eq(namesOf(col(quadFixed, 'pybullet')), [
+  'FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint', 'FL_foot_fixed',
+  'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint', 'FR_foot_fixed',
+  'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint', 'RL_foot_fixed',
+  'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint', 'RR_foot_fixed'
+], 'quadruped: showing fixed joints inserts foot_fixed into the PyBullet vector');
+eq(namesOf(col(quadFixed, 'isaacgym')).indexOf('FL_foot_fixed'), -1,
+  'quadruped: Isaac Gym still omits fixed joints when the toggle is on');
+
+const arm = run(serialArm(), { showFixed: false });
+eq(namesOf(col(arm, 'pybullet')), namesOf(col(arm, 'gazebo')),
+  'serial arm: PyBullet matches Gazebo (no sibling branching)');
+const armFixed = run(serialArm(), { showFixed: true });
+eq(
+  namesOf(col(armFixed, 'pybullet'))[namesOf(col(armFixed, 'pybullet')).length - 1],
+  'tool_fixed_joint',
+  'serial arm: PyBullet keeps tool_fixed_joint at the end when showing fixed'
+);
+
+const mob = run(mobile(), { showFixed: false });
+eq(namesOf(col(mob, 'pybullet')), [
+  'drive_wheel_left', 'drive_wheel_right',
+  'arm_shoulder_pan', 'arm_shoulder_lift', 'arm_elbow', 'arm_wrist',
+  'gripper_finger_left', 'gripper_finger_right'
+], 'mobile arm: PyBullet DFS keeps URDF sibling order (wheels then arm)');
+eq(namesOf(col(mob, 'gazebo'))[0], 'arm_shoulder_pan',
+  'mobile arm: Gazebo alphabetical siblings put the arm first');
+eq(namesOf(col(mob, 'pybullet'))[0] !== namesOf(col(mob, 'gazebo'))[0], true,
+  'mobile arm: PyBullet order differs from Gazebo');
+
+const mobFixed = run(mobile(), { showFixed: true });
+eq(namesOf(col(mobFixed, 'pybullet')).includes('gripper_mount'), true,
+  'mobile arm: PyBullet lists gripper_mount when showing fixed joints');
+
+eq(Orderings.RULE_DOCS.some((d) => d.id === 'pybullet'), true,
+  'PyBullet has a RULE_DOCS entry');
+
+/* MJCF weld edges must not leak into the PyBullet column. */
+const mjcfJoints = [
+  J('root', 'free', 'world', 'torso'),
+  J('FL_hip', 'hinge', 'torso', 'FL_hip'),
+  J('FL_thigh', 'hinge', 'FL_hip', 'FL_thigh'),
+  J('FR_hip', 'hinge', 'torso', 'FR_hip')
+];
+const weld = { name: 'scene', type: 'weld', parent: 'world', child: 'floor', weld: true };
+const mjcfModel = modelFromJoints(mjcfJoints, {
+  format: 'mjcf',
+  edges: mjcfJoints.concat([weld]),
+  links: [
+    { name: 'world', world: true },
+    { name: 'torso' }, { name: 'FL_hip' }, { name: 'FL_thigh' },
+    { name: 'FR_hip' }, { name: 'floor' }
+  ]
+});
+const mjcfA = run(mjcfModel, { showFixed: true });
+eq(col(mjcfA, 'pybullet').names !== null, true, 'MJCF: PyBullet column is applicable');
+eq(col(mjcfA, 'gazebo').names, null, 'MJCF: Gazebo column stays n/a');
+eq(namesOf(col(mjcfA, 'pybullet')).includes('scene'), false,
+  'MJCF: PyBullet drops weld edges even when showing fixed joints');
+eq(namesOf(col(mjcfA, 'pybullet')).includes('root'), false,
+  'MJCF: PyBullet drops the floating-base free joint');
+eq(namesOf(col(mjcfA, 'pybullet')), ['FL_hip', 'FL_thigh', 'FR_hip'],
+  'MJCF: PyBullet DFS matches the body tree without the free base');
+
+out.push('');
+out.push(failed ? failed + ' failed' : 'ALL PASSED');
+process.stdout.write(out.join('\n') + '\n');
+if (failed) process.exit(1);
