@@ -57,7 +57,8 @@
       'tree.jointsSub': '关节列表',
 
       'rules.title': '各框架的顺序规则',
-      'rules.hint': '这些规则决定了上面的计算结果。点击展开查看依据和注意事项。',
+      'rules.hint': '这些规则决定了上面的计算结果。点击展开查看依据、注意事项和运行时核对命令。',
+      'rules.verify': '运行时核对',
 
       'verdict.ok.title': '顺序一致',
       'verdict.ok.desc': '在共有的 {n} 个关节上，所有被比较的框架顺序完全相同。',
@@ -89,8 +90,8 @@
       'chip.ref': '参照',
       'chip.na': '不适用',
 
-      'footer.disclaimer': '本工具按各框架公开的导入规则静态推导关节顺序，用于快速排查；生产环境请始终以运行时打印的关节名列表为准（data.joint_names / mj_id2name / get_asset_dof_names）。',
-      'footer.local': '纯前端，数据不出浏览器'
+      'footer.disclaimer': '静态推导结果仅供排查，请以运行时打印的关节名列表为准。',
+      'footer.local': '纯前端 · 数据不出浏览器'
     },
 
     en: {
@@ -147,7 +148,8 @@
       'tree.jointsSub': 'Joints',
 
       'rules.title': 'Ordering rule for each framework',
-      'rules.hint': 'These rules drive the results above. Expand for the reasoning and caveats.',
+      'rules.hint': 'These rules drive the results above. Expand for the reasoning, caveats and the command to verify at runtime.',
+      'rules.verify': 'Verify at runtime',
 
       'verdict.ok.title': 'Orders are consistent',
       'verdict.ok.desc': 'All compared frameworks agree on the order of the {n} shared joints.',
@@ -179,8 +181,8 @@
       'chip.ref': 'reference',
       'chip.na': 'n/a',
 
-      'footer.disclaimer': 'This tool derives joint order statically from each framework\'s documented import rules, for quick triage. In production, always trust the joint name list printed at runtime (data.joint_names / mj_id2name / get_asset_dof_names).',
-      'footer.local': 'Fully client-side — your data never leaves the browser'
+      'footer.disclaimer': 'Statically derived — for triage only. Trust the joint names your runtime prints.',
+      'footer.local': 'Fully client-side · your data never leaves the browser'
     }
   };
 

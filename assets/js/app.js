@@ -653,9 +653,13 @@
     host.innerHTML = Orderings.FRAMEWORKS.map(function (fw) {
       var doc = Orderings.RULE_DOCS.filter(function (d) { return d.id === fw.id; })[0];
       if (!doc) return '';
+      var verify = doc.verify
+        ? '<div class="rule-verify"><span class="rule-verify-label">' + t('rules.verify') + '</span>' +
+          '<pre><code>' + esc(doc.verify) + '</code></pre></div>'
+        : '';
       return '<details class="rule"><summary>' + esc(Orderings.labelOf(fw, lang())) +
              ' <span class="rule-key">' + esc(Orderings.ruleOf(fw, lang())) + '</span></summary>' +
-             '<div class="rule-body">' + (doc.body[lang()] || doc.body.en) + '</div></details>';
+             '<div class="rule-body">' + (doc.body[lang()] || doc.body.en) + verify + '</div></details>';
     }).join('');
   }
 
