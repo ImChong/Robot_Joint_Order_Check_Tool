@@ -25,8 +25,9 @@
       'opts.ros2c.urdf': 'URDF 顺序 (use_urdf_to_filter=true，默认)',
       'opts.ros2c.tag': '<ros2_control> 标签顺序 (resource manager)',
       'opts.sibling': '同层子关节排序',
-      'opts.sibling.doc': 'URDF 文档顺序（默认）',
-      'opts.sibling.alpha': '按关节名字母序',
+      'opts.sibling.auto': '按各框架自身规则（默认）',
+      'opts.sibling.doc': '全部按 URDF 文档顺序',
+      'opts.sibling.alpha': '全部按关节名字母序',
       'opts.showFixed': '显示 fixed 关节',
 
       'table.title': '3. 顺序对照表',
@@ -114,8 +115,9 @@
       'opts.ros2c.urdf': 'URDF order (use_urdf_to_filter=true, default)',
       'opts.ros2c.tag': '<ros2_control> tag order (resource manager)',
       'opts.sibling': 'Sibling joint order',
-      'opts.sibling.doc': 'URDF document order (default)',
-      'opts.sibling.alpha': 'Alphabetical by joint name',
+      'opts.sibling.auto': "Each framework's own rule (default)",
+      'opts.sibling.doc': 'Force URDF document order',
+      'opts.sibling.alpha': 'Force alphabetical by joint name',
       'opts.showFixed': 'Show fixed joints',
 
       'table.title': '3. Side-by-side order',

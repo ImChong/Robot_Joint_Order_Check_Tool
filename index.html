@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>机器人关节顺序检查工具 | Robot Joint Order Check Tool</title>
-<meta name="description" content="上传 URDF，并列比较该机器人在 ROS、MuJoCo、Isaac Gym、Isaac Sim/Lab、ros2_control 中的关节顺序，一键发现顺序不一致。">
+<meta name="description" content="上传 URDF，并列比较该机器人在 Isaac Gym、Isaac Sim/Lab、MuJoCo、Gazebo、ros2_control 中的关节顺序，一键发现顺序不一致。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6df6'/%3E%3Cg fill='%23fff'%3E%3Ccircle cx='9' cy='9' r='3.2'/%3E%3Ccircle cx='23' cy='16' r='3.2'/%3E%3Ccircle cx='9' cy='23' r='3.2'/%3E%3Cpath d='M9 9 L23 16 L9 23' stroke='%23fff' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -97,8 +97,9 @@
         <label class="opt">
           <span data-i18n="opts.sibling">同层子关节排序</span>
           <select id="siblingMode">
-            <option value="document" data-i18n="opts.sibling.doc">URDF 文档顺序（默认）</option>
-            <option value="alphabetical" data-i18n="opts.sibling.alpha">按关节名字母序</option>
+            <option value="auto" data-i18n="opts.sibling.auto">按各框架自身规则（默认）</option>
+            <option value="document" data-i18n="opts.sibling.doc">全部按 URDF 文档顺序</option>
+            <option value="alphabetical" data-i18n="opts.sibling.alpha">全部按关节名字母序</option>
           </select>
         </label>
         <label class="opt opt-check">

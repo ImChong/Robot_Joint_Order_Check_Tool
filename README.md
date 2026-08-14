@@ -1,6 +1,6 @@
 # Robot_Joint_Order_Check_Tool
 
-机器人关节顺序检查工具 —— 上传一个 URDF，把它在 **ROS / MuJoCo / Isaac Gym / Isaac Sim (Isaac Lab) / ros2_control** 中的关节顺序并列打印出来。顺序全部一致就显示绿色，任何一个框架的顺序对不上就标红，并指出差在哪里。
+机器人关节顺序检查工具 —— 上传一个 URDF，把它在 **Isaac Gym / Isaac Sim (Isaac Lab) / MuJoCo / Gazebo / ros2_control** 中的关节顺序并列打印出来。顺序全部一致就显示绿色，任何一个框架的顺序对不上就标红，并指出差在哪里。
 
 **在线使用：** <https://imchong.github.io/Robot_Joint_Order_Check_Tool/>
 
@@ -15,21 +15,22 @@ URDF 本身**不定义关节顺序**——它只是一堆 link 和 joint 的集�
 | 工具 | 顺序规则 |
 | --- | --- |
 | URDF 文件 | `<joint>` 元素的文档顺序（作为参照基准） |
-| ROS (`urdf::Model`) | **按关节名字母序**（`joints_` 是 `std::map`） |
-| MuJoCo | body 树**深度优先**（DFS），同层按 URDF 里关节出现顺序 |
-| Isaac Gym (Preview) | 运动学树**深度优先**（DFS） |
+| Isaac Gym (Preview) | 运动学树**深度优先**（DFS），同层按 URDF 文档顺序 |
 | Isaac Sim / Isaac Lab | 运动学树**广度优先**（BFS，PhysX stage parser） |
+| MuJoCo | body 树**深度优先**（DFS），同层按 URDF 文档顺序 |
+| Gazebo (SDF) | **深度优先**（DFS），但**同层按关节名字母序**（sdformat 走 urdfdom 的 `child_links`） |
 | ros2_control | 取决于配置，默认跟 URDF 文件顺序一致（见下） |
 
 于是一个四足机器人会出现这种经典翻车现场：
 
 ```
-MuJoCo / Isaac Gym (DFS)   : FL_hip, FL_thigh, FL_calf, FR_hip, FR_thigh, FR_calf, ...
+Isaac Gym / MuJoCo (DFS)   : FL_hip, FL_thigh, FL_calf, FR_hip, FR_thigh, FR_calf, ...
 Isaac Sim / Isaac Lab (BFS): FL_hip, FR_hip,   RL_hip,   RR_hip, FL_thigh, FR_thigh, ...
-ROS urdf::Model (字母序)    : FL_calf, FL_hip,  FL_thigh, FR_calf, FR_hip,  FR_thigh, ...
 ```
 
 把在 Isaac Gym 里训好的策略直接部署到 Isaac Lab 或实机上，关节向量就会静默错位——不报错，机器人直接抽搐。这个工具就是用来在写代码之前先把这件事看清楚的。
+
+Gazebo 的坑更隐蔽：它也是 DFS，但**同层子关节按关节名字母序**，所以只要某个 link 的多个子关节的书写顺序不等于字母序，Gazebo 就会和 MuJoCo / Isaac Gym 分道扬镳。内置示例「移动机械臂」就是这种情况 —— `base_link` 下先写轮子后写手臂，Gazebo 却把 `arm_shoulder_pan` 排到了两个 `drive_wheel_*` 前面。
 
 ## 功能
 
@@ -48,7 +49,7 @@ ROS urdf::Model (字母序)    : FL_calf, FL_hip,  FL_thigh, FR_calf, FR_hip,  F
 
 - 顺序比较只在**两边共有的关节**上进行 —— MuJoCo 不会为 URDF 的 `fixed` 关节生成任何 joint，这不算「顺序错」
 - 关节集合的差异单独用黄色标出（缺少 / 多出哪些关节），不与顺序错误混在一起
-- 默认只显示可动关节；勾选「显示 fixed 关节」后，fixed 关节只会出现在真正持有它们的列（URDF / ROS / ros2_control）里
+- 默认只显示可动关节；勾选「显示 fixed 关节」后，fixed 关节只会出现在真正持有它们的列（URDF / ros2_control）里
 
 ## ros2_control 的三种情况
 
@@ -65,14 +66,15 @@ ROS urdf::Model (字母序)    : FL_calf, FL_hip,  FL_thigh, FR_calf, FR_hip,  F
 - Isaac Gym (DFS) vs Isaac Sim / Isaac Lab (BFS)：[Isaac Lab — Migrating from IsaacGymEnvs](https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_isaacgymenvs.html)
   > Physics simulation in Isaac Sim and Isaac Lab assumes a breadth-first ordering for the joints in a given kinematic tree. However, Isaac Gym Preview Release assumed a depth-first ordering for joints in the kinematic tree.
 - MuJoCo：[`src/xml/xml_urdf.cc`](https://github.com/google-deepmind/mujoco/blob/main/src/xml/xml_urdf.cc) —— 按文档顺序填充 `urChildren`，再从根 body 递归 `AddToTree()`；`fixed` 关节不生成 joint，`planar` 展开成 2 slide + 1 hinge，`<mimic>` 被忽略
-- ROS：[urdfdom_headers `model.h`](https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h) —— `joints_` 是 `std::map`，`initTree()` 遍历它填充 `child_links` / `child_joints`，所以连 KDL 树里同层子节点也是字母序
+- Gazebo：[sdformat `parser_urdf.cc`](https://github.com/gazebosim/sdformat/blob/sdf14/src/parser_urdf.cc) —— `CreateSDF()` 递归遍历 `_link->child_links`（DFS）；而 `child_links` 由 [urdfdom_headers `model.h`](https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h) 的 `initTree()` 遍历 `std::map` 类型的 `joints_` 填充，因此同层子关节是**按关节名字母序**。sdformat 默认还会吸收 fixed 关节
 - ros2_control：[joint_state_broadcaster 文档](https://control.ros.org/rolling/doc/ros2_controllers/joint_state_broadcaster/doc/userdoc.html)
 
 ## 已知限制
 
 - **只接受展开后的 URDF**。检测到 `<xacro:*>` 或 `${}` 会提示先跑 `xacro robot.urdf.xacro > robot.urdf`
 - 结论是**按公开的导入规则静态推导**的，不运行任何仿真器。生产环境请始终以运行时打印的关节名列表为准：`robot.data.joint_names`（Isaac Lab）、`mj_id2name(m, mjOBJ_JOINT, i)`（MuJoCo）、`gym.get_asset_dof_names(asset)`（Isaac Gym）
-- 导入器的选项会改变结果（例如 Isaac 的 `merge_fixed_joints`、MuJoCo 的 `fusestatic`、Isaac Gym 的 `collapse_fixed_joints`），工具按各自的默认行为计算
+- 导入器的选项会改变结果（例如 Isaac 的 `merge_fixed_joints`、MuJoCo 的 `fusestatic`、Isaac Gym 的 `collapse_fixed_joints`、sdformat 的 `disableFixedJointLumping` / `preserveFixedJoint`），工具按各自的默认行为计算
+- Gazebo 一列指的是 **URDF→SDF 转换后模型里的关节顺序**（`Model::GetJoints()` 走这个顺序）。`gazebo_ros_joint_state_publisher` 插件按你列的 `<joint_name>` 顺序发布，`gz_ros2_control` 走 `<ros2_control>` 标签，两者都与这一列无关
 - 多自由度关节（`floating` / `planar`）在各框架展开成的 DOF 数量和排列不同，关节级顺序一致**不代表** DOF 级一致，工具会单独警告
 - `<mimic>` 关节各框架支持程度不同，只作提示，不改变顺序推导
 
@@ -112,9 +114,9 @@ tools/export-samples.mjs   重新生成 samples/*.urdf
 
 ## English
 
-Upload a URDF and this page prints the robot's joint order **side by side** as seen by ROS, MuJoCo, Isaac Gym, Isaac Sim / Isaac Lab and ros2_control. Green when every framework agrees, red on the exact cells that don't — plus a generated index-remap array you can paste into your code.
+Upload a URDF and this page prints the robot's joint order **side by side** as seen by Isaac Gym, Isaac Sim / Isaac Lab, MuJoCo, Gazebo and ros2_control. Green when every framework agrees, red on the exact cells that don't — plus a generated index-remap array you can paste into your code.
 
-URDF itself defines no joint order, so each downstream tool imposes its own: ROS sorts alphabetically (`urdf::Model` uses a `std::map`), MuJoCo and Isaac Gym walk the kinematic tree depth-first, Isaac Sim / Isaac Lab walk it breadth-first, and ros2_control follows the URDF or the `<ros2_control>` tag depending on configuration. That mismatch is what silently scrambles a joint vector when you move a policy between them.
+URDF itself defines no joint order, so each downstream tool imposes its own: MuJoCo and Isaac Gym walk the kinematic tree depth-first, Isaac Sim / Isaac Lab walk it breadth-first, Gazebo also walks it depth-first but sorts siblings alphabetically (sdformat recurses over urdfdom's `child_links`, filled from a `std::map`), and ros2_control follows the URDF or the `<ros2_control>` tag depending on configuration. That mismatch is what silently scrambles a joint vector when you move a policy between them.
 
 Everything runs client-side — no upload, no build step. Live at <https://imchong.github.io/Robot_Joint_Order_Check_Tool/>; run locally with `python3 -m http.server 8000`.
 
