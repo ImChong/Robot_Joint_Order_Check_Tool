@@ -13,7 +13,7 @@
       'input.drop': '拖拽 .urdf / .xml 文件到这里，或点击选择文件',
       'input.dropSmall': 'URDF（.urdf）或 MuJoCo MJCF（.xml），自动识别；xacro 需先展开',
       'input.samples': '示例：',
-      'input.paste': '或粘贴 XML 文本 ▾',
+      'input.paste': '或粘贴 URDF / XML 文本 ▾',
       'input.pasteHide': '收起粘贴框 ▴',
       'input.placeholder': '在此粘贴 URDF 或 MJCF XML …',
       'input.parse': '解析',
@@ -101,7 +101,8 @@
       'chip.ref': '参照',
       'chip.na': '不适用',
 
-      'footer.disclaimer': '静态推导结果仅供排查，请以运行时打印的关节名列表为准。'
+      'footer.disclaimer': '静态推导结果仅供排查，请以运行时打印的关节名列表为准。',
+      'footer.author': '刘冲'
     },
 
     en: {
@@ -114,7 +115,7 @@
       'input.drop': 'Drop a .urdf / .xml file here, or click to choose one',
       'input.dropSmall': 'URDF (.urdf) or MuJoCo MJCF (.xml), detected automatically; expand xacro first',
       'input.samples': 'Samples:',
-      'input.paste': 'or paste XML text ▾',
+      'input.paste': 'or paste URDF / XML text ▾',
       'input.pasteHide': 'hide paste box ▴',
       'input.placeholder': 'Paste URDF or MJCF XML here …',
       'input.parse': 'Parse',
@@ -202,7 +203,8 @@
       'chip.ref': 'reference',
       'chip.na': 'n/a',
 
-      'footer.disclaimer': 'Statically derived — for triage only. Trust the joint names your runtime prints.'
+      'footer.disclaimer': 'Statically derived — for triage only. Trust the joint names your runtime prints.',
+      'footer.author': 'Chong Liu'
     }
   };
 
