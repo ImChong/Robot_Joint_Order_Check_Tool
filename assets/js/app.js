@@ -14,7 +14,7 @@
     analysis: null,
     view: 'byindex',
     codeLang: 'python',
-    opts: { refId: 'urdf', siblingOrder: 'auto', ros2cMode: 'urdf', showFixed: false }
+    opts: { refId: 'file', siblingOrder: 'auto', ros2cMode: 'urdf', showFixed: false }
   };
 
   var $ = function (sel) { return document.querySelector(sel); };
@@ -26,9 +26,10 @@
   }
 
   function lang() { return global.I18N.getLang(); }
+  function format() { return state.model ? state.model.format : null; }
 
-  function fwLabel(col) { return Orderings.labelOf(col.label, lang()); }
-  function fwRule(col) { return Orderings.ruleOf(col.label, lang()); }
+  function fwLabel(col) { return Orderings.labelOf(col.label, lang(), format()); }
+  function fwRule(col) { return Orderings.ruleOf(col.label, lang(), format()); }
 
   /* ── Theme ─────────────────────────────────────────────────────── */
   var THEME_KEY = 'rjoct.theme';
@@ -82,8 +83,42 @@
       b.type = 'button';
       b.className = 'btn-chip';
       b.textContent = s.label[lang()] || s.label.en;
-      b.addEventListener('click', function () { load(s.text, { kind: 'sample', id: s.id }); });
+      b.addEventListener('click', function () { loadSample(s, b); });
       host.appendChild(b);
+    });
+  }
+
+  /* Synthetic samples are inlined; the vendored real-world models live under
+     samples/ and are fetched on click, which needs the page to be served over
+     http(s) — from file:// the browser blocks the read. */
+  function loadSample(sample, btn) {
+    if (sample.text) {
+      load(sample.text, { kind: 'sample', id: sample.id });
+      return;
+    }
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = label + ' …';
+    var restore = function () { btn.disabled = false; btn.textContent = label; };
+
+    fetch('samples/' + sample.file).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    }).then(function (text) {
+      restore();
+      load(text, { kind: 'sample', id: sample.id });
+    }).catch(function (e) {
+      restore();
+      $('#results').hidden = true;
+      $('#fileMeta').hidden = true;
+      showMessages([{
+        level: 'error',
+        html: t('msg.sampleFetch', {
+          file: esc(sample.file),
+          detail: esc(String(e && e.message || e)),
+          url: esc(sample.source || ('samples/' + sample.file))
+        })
+      }]);
     });
   }
 
@@ -141,10 +176,27 @@
   }
 
   /* ── Load & analyse ────────────────────────────────────────────── */
+
+  /* Both formats are XML telling themselves apart by their root element. It
+     has to be the root: a URDF may carry a <mujoco> block of its own (the
+     Unitree G1 URDF does), and MJCF has no <robot> anywhere. */
+  function detectFormat(text) {
+    try {
+      var root = new DOMParser().parseFromString(text, 'application/xml').documentElement;
+      var name = root && (root.localName || root.nodeName);
+      if (name === 'mujoco') return 'mjcf';
+    } catch (e) { /* leave it to the URDF parser, which reports the XML error */ }
+    return 'urdf';
+  }
+
+  function parseInput(text) {
+    return detectFormat(text) === 'mjcf' ? global.MJCF.parseMjcf(text) : URDF.parseUrdf(text);
+  }
+
   function load(text, source) {
     state.text = text;
     state.source = source || { kind: 'file', name: 'urdf' };
-    state.model = URDF.parseUrdf(text);
+    state.model = parseInput(text);
     state.tree = state.model.errors.length ? null : URDF.buildTree(state.model);
 
     // With no root link every tree walk comes back empty, so any order we
@@ -157,7 +209,7 @@
       renderMessages();
       return;
     }
-    state.opts.refId = 'urdf';
+    state.opts.refId = 'file';
     $('#results').hidden = false;
     renderAll();
     $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -218,7 +270,14 @@
         });
       }
 
-      var multi = m.joints.filter(function (j) { return URDF.dofOf(j.type) > 1; });
+      // Reported on its own below, so keep it out of the multi-DOF list.
+      var freeBase = Orderings.freeBaseJoints(m, state.tree);
+      var isFreeBase = {};
+      freeBase.forEach(function (j) { isFreeBase[j.name] = true; });
+
+      var multi = m.joints.filter(function (j) {
+        return URDF.dofOf(j.type) > 1 && !isFreeBase[j.name];
+      });
       if (multi.length) {
         msgs.push({
           level: 'warn',
@@ -228,11 +287,64 @@
         });
       }
 
+      if (freeBase.length) {
+        msgs.push({
+          level: 'info',
+          html: t('msg.freeBase', {
+            list: joinNames(freeBase.map(function (j) { return j.name; }))
+          })
+        });
+      }
+
+      if (m.format === 'mjcf') mjcfMessages(m, msgs);
+
       var fatal = msgs.some(function (x) { return x.level === 'error'; });
-      if (!fatal && !m.ros2ControlJoints.length) msgs.push({ level: 'info', html: t('msg.noRos2Control') });
+      if (!fatal && m.format !== 'mjcf' && !m.ros2ControlJoints.length) {
+        msgs.push({ level: 'info', html: t('msg.noRos2Control') });
+      }
     }
 
     showMessages(msgs);
+  }
+
+  /* Things only an MJCF can tell us about. */
+  function mjcfMessages(m, msgs) {
+    if (m.includes.length) {
+      msgs.push({
+        level: 'warn',
+        html: t('msg.mjcfInclude', { n: m.includes.length, list: joinNames(m.includes) })
+      });
+    }
+
+    if (m.equalities.length) {
+      msgs.push({
+        level: 'warn',
+        html: t('msg.mjcfEquality', {
+          n: m.equalities.length,
+          list: joinNames(m.equalities.map(function (e) { return e.joint1 + ' ↔ ' + e.joint2; }))
+        })
+      });
+    }
+
+    // Actuators that drive a tendon/site/body, or a joint from an <include>,
+    // still take a ctrl slot but cannot appear in the ctrl column.
+    var skipped = m.actuators.filter(function (a) { return !a.joint || !m.jointByName[a.joint]; });
+    if (skipped.length) {
+      msgs.push({
+        level: 'warn',
+        html: t('msg.mjcfActuatorSkipped', {
+          n: skipped.length,
+          list: joinNames(skipped.map(function (a) { return (a.name || a.kind) + ' (' + a.kind + ')'; }))
+        })
+      });
+    }
+
+    if (m.duplicateNames.length) {
+      msgs.push({
+        level: 'warn',
+        html: t('msg.duplicateName', { n: m.duplicateNames.length, list: joinNames(m.duplicateNames) })
+      });
+    }
   }
 
   function showMessages(msgs) {
@@ -243,28 +355,41 @@
     }).join('');
   }
 
+  function currentSample() {
+    var s = state.source || {};
+    if (s.kind !== 'sample') return null;
+    return (global.SAMPLES || []).filter(function (x) { return x.id === s.id; })[0] || null;
+  }
+
   /* Resolved at render time so it follows the language toggle. */
   function sourceLabel() {
     var s = state.source || {};
     if (s.kind === 'paste') return t('input.pasted');
-    if (s.kind === 'sample') {
-      var found = (global.SAMPLES || []).filter(function (x) { return x.id === s.id; })[0];
-      if (found) return found.label[lang()] || found.label.en;
-    }
+    var sample = currentSample();
+    if (sample) return sample.label[lang()] || sample.label.en;
     return s.name || 'urdf';
   }
 
   function renderFileMeta() {
     var m = state.model;
-    var movable = m.joints.filter(URDF.isMovable).length;
+    var mjcf = m.format === 'mjcf';
     var meta = $('#fileMeta');
+    var sample = currentSample();
+    var upstream = sample && sample.source
+      ? ' · <a href="' + esc(sample.source) + '" target="_blank" rel="noopener">' + t('input.upstream') + '</a>'
+      : '';
+
     meta.hidden = false;
-    meta.innerHTML = esc(sourceLabel()) + ' · ' + t('msg.parsed', {
+    meta.innerHTML = esc(sourceLabel()) + ' · ' + t(mjcf ? 'msg.parsedMjcf' : 'msg.parsed', {
       name: esc(m.robotName),
-      links: m.links.length,
+      // MJCF adds a world link, plus one per extra joint on a multi-joint body.
+      links: mjcf
+        ? m.links.filter(function (l) { return !l.world && !l.synthetic; }).length
+        : m.links.length,
       joints: m.joints.length,
-      movable: movable
-    });
+      movable: m.joints.filter(URDF.isMovable).length,
+      actuators: mjcf ? m.actuators.length : 0
+    }) + upstream;
   }
 
   /* ── Options ───────────────────────────────────────────────────── */
@@ -350,7 +475,7 @@
     if (!col.cmp.orderMatch) parts.push(t('verdict.diffCount', { n: col.cmp.diffPositions.length }));
     if (col.cmp.missing.length) parts.push(t('verdict.missing', { n: col.cmp.missing.length, list: joinNames(col.cmp.missing, 4) }));
     if (col.cmp.extra.length) parts.push(t('verdict.extra', { n: col.cmp.extra.length, list: joinNames(col.cmp.extra, 4) }));
-    return '<b>' + esc(fwLabel(col)) + '</b> — ' + parts.join('；');
+    return '<b>' + esc(fwLabel(col)) + '</b> — ' + parts.join(lang() === 'zh' ? '；' : '; ');
   }
 
   /* ── Comparison table ──────────────────────────────────────────── */
@@ -394,9 +519,13 @@
         var joint = col.seq[i];
         var fixedCls = URDF.isMovable(joint) ? '' : ' cell-fixed';
         var cls;
+        // Red is reserved for a joint that actually moved relative to the
+        // others; a joint sitting at a different index only because the column
+        // holds a different set of joints is a shift, not an ordering bug.
         if (col.status === 'ref') cls = 'cell';
-        else if (!ref || ref.names[i] === name) cls = 'cell cell-ok';
-        else if (col.status === 'bad') cls = 'cell cell-bad';
+        else if (!ref || !col.cmp) cls = 'cell';
+        else if (col.cmp.misordered[name]) cls = 'cell cell-bad';
+        else if (ref.names[i] === name) cls = 'cell cell-ok';
         else cls = 'cell cell-shift';
 
         return '<td class="' + cls + fixedCls + '">' + esc(name) + '</td>';
@@ -419,8 +548,10 @@
         if (idx === -1) return '<td class="cell cell-na">—</td>';
         var refIdx = a.reference ? a.reference.names.indexOf(name) : -1;
         var cls = 'cell cell-idx';
-        if (col.status !== 'ref' && refIdx !== -1 && refIdx !== idx) {
-          cls += col.status === 'bad' ? ' cell-bad' : ' cell-shift';
+        if (col.status !== 'ref' && col.cmp && col.cmp.misordered[name]) {
+          cls += ' cell-bad';
+        } else if (col.status !== 'ref' && refIdx !== -1 && refIdx !== idx) {
+          cls += ' cell-shift';
         } else if (col.status !== 'ref') {
           cls += ' cell-ok';
         }
@@ -500,6 +631,7 @@
     if (state.codeLang === 'json') {
       var dump = {
         robot: robot,
+        format: state.model.format,
         generated_by: 'Robot_Joint_Order_Check_Tool',
         options: state.opts,
         orders: {},
@@ -601,6 +733,7 @@
     var a = state.analysis;
     var dump = {
       robot: state.model.robotName,
+      format: state.model.format,
       source: sourceLabel(),
       generated_by: 'Robot_Joint_Order_Check_Tool',
       options: state.opts,
@@ -615,7 +748,16 @@
     a.columns.forEach(function (c) {
       dump.orders[c.id] = c.names;
       dump.comparison[c.id] = c.cmp
-        ? { status: c.status, order_match: c.cmp.orderMatch, missing: c.cmp.missing, extra: c.cmp.extra, diff_positions: c.cmp.diffPositions }
+        ? {
+            status: c.status,
+            order_match: c.cmp.orderMatch,
+            missing: c.cmp.missing,
+            extra: c.cmp.extra,
+            // Both are measured on the joints this column shares with the
+            // reference, so a differing joint set does not inflate them.
+            misordered: Object.keys(c.cmp.misordered),
+            diff_positions_in_common: c.cmp.diffPositions
+          }
         : { status: c.status };
     });
     download(state.model.robotName + '_joint_order.json', 'application/json', JSON.stringify(dump, null, 2));
@@ -627,6 +769,11 @@
     $('#treeOut').innerHTML = lines.map(function (l) {
       if (l.kind === 'gap') return '';
       if (l.kind === 'link') return '<b>' + esc(l.text) + '</b>';
+      // A weld edge is not an element in the file — it is named after the body
+      // it holds, so print the tag alone instead of repeating the name.
+      if (l.type === 'weld') {
+        return esc(l.text) + '<span class="t-fixed">[weld]</span> → ' + esc(l.child);
+      }
       var cls = URDF.dofOf(l.type) > 0 ? 't-joint' : 't-fixed';
       return esc(l.text) + '<span class="' + cls + '">' + esc(l.joint) + '</span>' +
              '<span class="t-type"> [' + esc(l.type) + ']</span> → ' + esc(l.child);

@@ -1,4 +1,9 @@
-/* Built-in sample URDFs (embedded so the page also works from file://) */
+/* Built-in samples.
+   The synthetic robots carry their `text` inline, so they work from file://
+   too and stay the single source of truth for samples/*.urdf (regenerate with
+   `node tools/export-samples.mjs`).
+   The real-world models are vendored verbatim under samples/ and fetched on
+   demand — see samples/README.md for provenance. */
 (function (global) {
   'use strict';
 
@@ -106,21 +111,38 @@
     return s + '</robot>\n';
   }
 
+  var G1 = 'https://github.com/unitreerobotics/unitree_ros/blob/master/robots/g1_description/';
+
   global.SAMPLES = [
     {
       id: 'arm',
+      file: 'arm.urdf',
       label: { zh: '6 轴机械臂（全部一致）', en: '6-DOF arm (all consistent)' },
       text: buildArm()
     },
     {
       id: 'quadruped',
+      file: 'quadruped.urdf',
       label: { zh: '四足机器人（DFS / BFS 冲突）', en: 'Quadruped (DFS vs BFS)' },
       text: buildQuadruped()
     },
     {
       id: 'ros2control',
+      file: 'ros2control.urdf',
       label: { zh: '移动机械臂（含 ros2_control）', en: 'Mobile manipulator (ros2_control)' },
       text: buildRos2Control()
+    },
+    {
+      id: 'g1_urdf',
+      file: 'g1_29dof_with_hand_rev_1_0.urdf',
+      label: { zh: 'Unitree G1 29DOF + 灵巧手（URDF）', en: 'Unitree G1 29-DOF with hands (URDF)' },
+      source: G1 + 'g1_29dof_with_hand_rev_1_0.urdf'
+    },
+    {
+      id: 'g1_mjcf',
+      file: 'g1_29dof_with_hand_rev_1_0.xml',
+      label: { zh: 'Unitree G1 29DOF + 灵巧手（MJCF）', en: 'Unitree G1 29-DOF with hands (MJCF)' },
+      source: G1 + 'g1_29dof_with_hand_rev_1_0.xml'
     }
   ];
 })(window);

@@ -2,15 +2,24 @@
 (function (global) {
   'use strict';
 
-  /* Degrees of freedom contributed by each URDF joint type.
-     planar = 2 translations + 1 rotation in the plane; floating = full 6-DOF. */
+  /* Degrees of freedom contributed by each joint type, URDF names first, then
+     the MJCF ones (mjcf.js builds the same model shape).
+     planar = 2 translations + 1 rotation in the plane; floating/free = 6-DOF
+     (a free joint spans 7 qpos but 6 qvel — this is the qvel/DOF count).
+     `weld` is not a real element: mjcf.js uses it for a body with no joint,
+     the MJCF equivalent of a URDF fixed joint. */
   var DOF_BY_TYPE = {
     revolute: 1,
     continuous: 1,
     prismatic: 1,
     fixed: 0,
     floating: 6,
-    planar: 3
+    planar: 3,
+    hinge: 1,
+    slide: 1,
+    ball: 3,
+    free: 6,
+    weld: 0
   };
 
   function dofOf(type) {
@@ -44,6 +53,7 @@
    */
   function parseUrdf(text) {
     var model = {
+      format: 'urdf',
       robotName: '',
       links: [],
       joints: [],
@@ -130,9 +140,14 @@
 
   /**
    * Build the kinematic tree.
-   * childJoints maps a link name -> array of outgoing joints in URDF document order.
+   * childJoints maps a link name -> array of outgoing joints in document order.
+   * Walks model.edges when present (MJCF adds weld edges for jointless bodies,
+   * which carry no DOF but still hold the body tree together); for URDF the
+   * edges are exactly the joints.
    */
   function buildTree(model) {
+    var edges = model.edges || model.joints;
+
     var declared = {};
     model.links.forEach(function (l) { declared[l.name] = true; });
 
@@ -149,7 +164,7 @@
 
     model.links.forEach(function (l) { touch(l.name); });
 
-    model.joints.forEach(function (j) {
+    edges.forEach(function (j) {
       touch(j.parent);
       touch(j.child);
       if (!childJoints[j.parent]) childJoints[j.parent] = [];

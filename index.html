@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>机器人关节顺序检查工具 | Robot Joint Order Check Tool</title>
-<meta name="description" content="上传 URDF，并列比较该机器人在 Isaac Gym、Isaac Sim/Lab、MuJoCo、Gazebo、ros2_control 中的关节顺序，一键发现顺序不一致。">
+<meta name="description" content="上传 URDF 或 MuJoCo MJCF，并列比较该机器人在 Isaac Gym、Isaac Sim/Lab、MuJoCo、Gazebo、ros2_control 中的关节顺序，一键发现顺序不一致。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6df6'/%3E%3Cg fill='%23fff'%3E%3Ccircle cx='9' cy='9' r='3.2'/%3E%3Ccircle cx='23' cy='16' r='3.2'/%3E%3Ccircle cx='9' cy='23' r='3.2'/%3E%3Cpath d='M9 9 L23 16 L9 23' stroke='%23fff' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -24,7 +24,7 @@
       </svg>
       <span class="site-title-text">
         <strong data-i18n="app.title">机器人关节顺序检查工具</strong>
-        <small data-i18n="app.subtitle">比较 URDF 在各仿真器 / 框架中的关节顺序</small>
+        <small data-i18n="app.subtitle">比较 URDF / MJCF 在各仿真器 / 框架中的关节顺序</small>
       </span>
     </a>
     <div class="header-right">
@@ -41,7 +41,7 @@
 
   <!-- ─────────── Input ─────────── -->
   <section class="card" id="inputCard">
-    <h2 class="card-title" data-i18n="input.title">1. 载入 URDF</h2>
+    <h2 class="card-title" data-i18n="input.title">1. 载入 URDF / MJCF</h2>
     <p class="card-hint" data-i18n="input.hint">文件完全在你的浏览器本地解析，不会上传到任何服务器。</p>
 
     <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-labelledby="dropzoneLabel">
@@ -49,8 +49,8 @@
         <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
       </svg>
-      <span id="dropzoneLabel" data-i18n="input.drop">拖拽 .urdf 文件到这里，或点击选择文件</span>
-      <small data-i18n="input.dropSmall">支持 .urdf / .xml（xacro 需先展开）</small>
+      <span id="dropzoneLabel" data-i18n="input.drop">拖拽 .urdf / .xml 文件到这里，或点击选择文件</span>
+      <small data-i18n="input.dropSmall">URDF（.urdf）或 MuJoCo MJCF（.xml），自动识别；xacro 需先展开</small>
       <input type="file" id="fileInput" accept=".urdf,.xml,.txt,text/xml,application/xml" hidden>
     </div>
 
@@ -59,11 +59,11 @@
         <span class="samples-label" data-i18n="input.samples">示例：</span>
         <span id="sampleButtons"></span>
       </div>
-      <button type="button" class="btn btn-link" id="togglePaste" data-i18n="input.paste">或粘贴 URDF 文本 ▾</button>
+      <button type="button" class="btn btn-link" id="togglePaste" data-i18n="input.paste">或粘贴 XML 文本 ▾</button>
     </div>
 
     <div id="pasteArea" class="paste-area" hidden>
-      <textarea id="urdfText" spellcheck="false" rows="10" data-i18n-placeholder="input.placeholder" placeholder="在此粘贴 URDF XML …"></textarea>
+      <textarea id="urdfText" spellcheck="false" rows="10" data-i18n-placeholder="input.placeholder" placeholder="在此粘贴 URDF 或 MJCF XML …"></textarea>
       <button type="button" class="btn btn-primary" id="parsePasted" data-i18n="input.parse">解析</button>
     </div>
 
@@ -182,6 +182,7 @@
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/samples.js"></script>
 <script src="assets/js/urdf.js"></script>
+<script src="assets/js/mjcf.js"></script>
 <script src="assets/js/orderings.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
