@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>机器人关节顺序检查工具 | Robot Joint Order Check Tool</title>
+<meta name="description" content="上传 URDF，并列比较该机器人在 ROS、MuJoCo、Isaac Gym、Isaac Sim/Lab、ros2_control 中的关节顺序，一键发现顺序不一致。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6df6'/%3E%3Cg fill='%23fff'%3E%3Ccircle cx='9' cy='9' r='3.2'/%3E%3Ccircle cx='23' cy='16' r='3.2'/%3E%3Ccircle cx='9' cy='23' r='3.2'/%3E%3Cpath d='M9 9 L23 16 L9 23' stroke='%23fff' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="currentColor"/>
+        <g fill="#fff" stroke="#fff">
+          <path d="M9 9 L23 16 L9 23" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
+          <circle cx="9" cy="9" r="3.2" stroke="none"/>
+          <circle cx="23" cy="16" r="3.2" stroke="none"/>
+          <circle cx="9" cy="23" r="3.2" stroke="none"/>
+        </g>
+      </svg>
+      <div class="brand-text">
+        <strong data-i18n="app.title">机器人关节顺序检查工具</strong>
+        <span data-i18n="app.subtitle">比较 URDF 在各仿真器 / 框架中的关节顺序</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="btn btn-ghost" id="langToggle" title="中文 / English">EN</button>
+      <button type="button" class="btn btn-ghost" id="themeToggle" data-i18n-title="ui.theme" title="切换主题">
+        <span id="themeIcon">◐</span>
+      </button>
+      <a class="btn btn-ghost" id="repoLink" href="https://github.com/ImChong/Robot_Joint_Order_Check_Tool" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ─────────── Input ─────────── -->
+  <section class="card" id="inputCard">
+    <h2 class="card-title" data-i18n="input.title">1. 载入 URDF</h2>
+    <p class="card-hint" data-i18n="input.hint">文件完全在你的浏览器本地解析，不会上传到任何服务器。</p>
+
+    <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-labelledby="dropzoneLabel">
+      <svg viewBox="0 0 24 24" class="dz-icon" aria-hidden="true">
+        <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      </svg>
+      <span id="dropzoneLabel" data-i18n="input.drop">拖拽 .urdf 文件到这里，或点击选择文件</span>
+      <small data-i18n="input.dropSmall">支持 .urdf / .xml（xacro 需先展开）</small>
+      <input type="file" id="fileInput" accept=".urdf,.xml,.txt,text/xml,application/xml" hidden>
+    </div>
+
+    <div class="row-between">
+      <div class="samples">
+        <span class="samples-label" data-i18n="input.samples">示例：</span>
+        <span id="sampleButtons"></span>
+      </div>
+      <button type="button" class="btn btn-link" id="togglePaste" data-i18n="input.paste">或粘贴 URDF 文本 ▾</button>
+    </div>
+
+    <div id="pasteArea" class="paste-area" hidden>
+      <textarea id="urdfText" spellcheck="false" rows="10" data-i18n-placeholder="input.placeholder" placeholder="在此粘贴 URDF XML …"></textarea>
+      <button type="button" class="btn btn-primary" id="parsePasted" data-i18n="input.parse">解析</button>
+    </div>
+
+    <div id="fileMeta" class="file-meta" hidden></div>
+  </section>
+
+  <!-- ─────────── Messages ─────────── -->
+  <div id="messages"></div>
+
+  <!-- ─────────── Results ─────────── -->
+  <section id="results" hidden>
+
+    <div id="verdict" class="verdict"></div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title" data-i18n="opts.title">2. 选项</h2>
+      </div>
+      <div class="options">
+        <label class="opt">
+          <span data-i18n="opts.reference">参照顺序</span>
+          <select id="refSelect"></select>
+        </label>
+        <label class="opt">
+          <span data-i18n="opts.ros2c">ros2_control 顺序来源</span>
+          <select id="ros2cMode">
+            <option value="urdf" data-i18n="opts.ros2c.urdf">URDF 顺序 (use_urdf_to_filter=true，默认)</option>
+            <option value="tag" data-i18n="opts.ros2c.tag">&lt;ros2_control&gt; 标签顺序 (resource manager)</option>
+          </select>
+        </label>
+        <label class="opt">
+          <span data-i18n="opts.sibling">同层子关节排序</span>
+          <select id="siblingMode">
+            <option value="document" data-i18n="opts.sibling.doc">URDF 文档顺序（默认）</option>
+            <option value="alphabetical" data-i18n="opts.sibling.alpha">按关节名字母序</option>
+          </select>
+        </label>
+        <label class="opt opt-check">
+          <input type="checkbox" id="showFixed">
+          <span data-i18n="opts.showFixed">显示 fixed 关节</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title" data-i18n="table.title">3. 顺序对照表</h2>
+        <div class="seg" role="tablist">
+          <button type="button" class="seg-btn is-active" data-view="byindex" data-i18n="table.byIndex">按序号</button>
+          <button type="button" class="seg-btn" data-view="byjoint" data-i18n="table.byJoint">按关节</button>
+        </div>
+      </div>
+      <p class="card-hint"><span class="legend-swatch legend-ok"></span><span data-i18n="table.legendOk">与参照一致</span>
+        <span class="legend-swatch legend-bad"></span><span data-i18n="table.legendBad">与参照不一致</span>
+        <span class="legend-swatch legend-shift"></span><span data-i18n="table.legendShift">顺序一致但因关节集合不同而错位</span>
+        <span class="legend-swatch legend-na"></span><span data-i18n="table.legendNa">该框架不含此关节</span></p>
+      <div class="table-scroll" id="tableWrap"></div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title" data-i18n="export.title">4. 导出与索引重映射</h2>
+      <p class="card-hint" data-i18n="export.hint">生成把一个框架的关节向量重排到另一个框架的索引数组，直接贴进代码里用。</p>
+      <div class="options">
+        <label class="opt"><span data-i18n="export.from">源顺序（你手上的数据）</span><select id="mapFrom"></select></label>
+        <label class="opt"><span data-i18n="export.to">目标顺序（你要的顺序）</span><select id="mapTo"></select></label>
+      </div>
+      <div class="code-block">
+        <div class="code-head">
+          <div class="seg seg-sm">
+            <button type="button" class="seg-btn is-active" data-lang="python">Python</button>
+            <button type="button" class="seg-btn" data-lang="cpp">C++</button>
+            <button type="button" class="seg-btn" data-lang="json">JSON</button>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="copyCode" data-i18n="export.copy">复制</button>
+        </div>
+        <pre id="codeOut"><code></code></pre>
+      </div>
+      <div class="export-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="dlCsv" data-i18n="export.csv">下载 CSV</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="dlJson" data-i18n="export.json">下载完整 JSON</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title" data-i18n="tree.title">5. 运动学树与关节详情</h2>
+      <div class="split">
+        <div>
+          <h3 class="sub" data-i18n="tree.sub">运动学树</h3>
+          <pre id="treeOut" class="tree"></pre>
+        </div>
+        <div>
+          <h3 class="sub" data-i18n="tree.jointsSub">关节列表</h3>
+          <div class="table-scroll"><table class="tbl tbl-sm" id="jointsTable"></table></div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ─────────── Reference ─────────── -->
+  <section class="card" id="rulesCard">
+    <h2 class="card-title" data-i18n="rules.title">各框架的顺序规则</h2>
+    <p class="card-hint" data-i18n="rules.hint">这些规则决定了上面的计算结果。点击展开查看依据和注意事项。</p>
+    <div id="rulesList" class="rules"></div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <p data-i18n="footer.disclaimer">本工具按各框架公开的导入规则静态推导关节顺序，用于快速排查；生产环境请始终以运行时打印的关节名列表为准（<code>data.joint_names</code> / <code>mj_id2name</code> / <code>get_asset_dof_names</code>）。</p>
+    <p><a href="https://github.com/ImChong/Robot_Joint_Order_Check_Tool" target="_blank" rel="noopener">Robot_Joint_Order_Check_Tool</a> · <span data-i18n="footer.local">纯前端，数据不出浏览器</span></p>
+  </div>
+</footer>
+
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/samples.js"></script>
+<script src="assets/js/urdf.js"></script>
+<script src="assets/js/orderings.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

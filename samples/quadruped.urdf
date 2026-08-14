@@ -1,0 +1,162 @@
+<?xml version="1.0"?>
+<robot name="quadruped_12dof">
+  <!-- Four identical legs branching off one trunk.
+       MuJoCo / Isaac Gym walk depth-first  -> FL_hip, FL_thigh, FL_calf, FR_hip, ...
+       Isaac Sim / Isaac Lab walk breadth-first -> FL_hip, FR_hip, RL_hip, RR_hip, ...
+       urdf::Model sorts alphabetically      -> FL_calf, FL_hip, FL_thigh, FR_calf, ... -->
+  <link name="trunk">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FL_hip">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FL_thigh">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FL_calf">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FL_foot">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FR_hip">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FR_thigh">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FR_calf">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="FR_foot">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RL_hip">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RL_thigh">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RL_calf">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RL_foot">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RR_hip">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RR_thigh">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RR_calf">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <link name="RR_foot">
+    <inertial><mass value="1.0"/><origin xyz="0 0 0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/></inertial>
+  </link>
+  <joint name="FL_hip_joint" type="revolute">
+    <parent link="trunk"/>
+    <child link="FL_hip"/>
+    <origin xyz="0.18 0.05 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="FL_thigh_joint" type="revolute">
+    <parent link="FL_hip"/>
+    <child link="FL_thigh"/>
+    <origin xyz="0 0.05 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="FL_calf_joint" type="revolute">
+    <parent link="FL_thigh"/>
+    <child link="FL_calf"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="FL_foot_fixed" type="fixed">
+    <parent link="FL_calf"/>
+    <child link="FL_foot"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+  </joint>
+  <joint name="FR_hip_joint" type="revolute">
+    <parent link="trunk"/>
+    <child link="FR_hip"/>
+    <origin xyz="0.18 -0.05 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="FR_thigh_joint" type="revolute">
+    <parent link="FR_hip"/>
+    <child link="FR_thigh"/>
+    <origin xyz="0 -0.05 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="FR_calf_joint" type="revolute">
+    <parent link="FR_thigh"/>
+    <child link="FR_calf"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="FR_foot_fixed" type="fixed">
+    <parent link="FR_calf"/>
+    <child link="FR_foot"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+  </joint>
+  <joint name="RL_hip_joint" type="revolute">
+    <parent link="trunk"/>
+    <child link="RL_hip"/>
+    <origin xyz="-0.18 0.05 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="RL_thigh_joint" type="revolute">
+    <parent link="RL_hip"/>
+    <child link="RL_thigh"/>
+    <origin xyz="0 0.05 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="RL_calf_joint" type="revolute">
+    <parent link="RL_thigh"/>
+    <child link="RL_calf"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="RL_foot_fixed" type="fixed">
+    <parent link="RL_calf"/>
+    <child link="RL_foot"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+  </joint>
+  <joint name="RR_hip_joint" type="revolute">
+    <parent link="trunk"/>
+    <child link="RR_hip"/>
+    <origin xyz="-0.18 -0.05 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="RR_thigh_joint" type="revolute">
+    <parent link="RR_hip"/>
+    <child link="RR_thigh"/>
+    <origin xyz="0 -0.05 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="RR_calf_joint" type="revolute">
+    <parent link="RR_thigh"/>
+    <child link="RR_calf"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.14" upper="3.14" effort="100" velocity="3.0"/>
+  </joint>
+  <joint name="RR_foot_fixed" type="fixed">
+    <parent link="RR_calf"/>
+    <child link="RR_foot"/>
+    <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+  </joint>
+</robot>
