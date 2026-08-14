@@ -24,6 +24,9 @@ jobs:
           git diff --exit-code -- samples/ \
             || (echo "::error::samples/*.urdf are stale — run 'node tools/export-samples.mjs' and commit." && exit 1)
 
+      - name: Check joint-order rules
+        run: node tools/test-orderings.mjs
+
   deploy:
     name: Deploy to GitHub Pages
     needs: check

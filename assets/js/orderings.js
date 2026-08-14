@@ -50,10 +50,11 @@
   /* ── Framework definitions ─────────────────────────────────────────
      compute(ctx) -> array of joint objects, or null when not applicable.
      `holdsFixed` marks frameworks whose joint list can contain fixed joints
-     at all; simulators create no DOF for a URDF fixed joint.
+     at all; Isaac / MuJoCo / Gazebo create no joint for a URDF fixed joint,
+     while PyBullet's getJointInfo keeps every child link (fixed included).
      `holdsFreeBase` marks the ones that expose a floating base as a joint —
      MuJoCo does (a free joint, first in the vector), Isaac / Gazebo /
-     ros2_control treat it as a free-floating root instead.
+     PyBullet / ros2_control treat it as a free-floating root instead.
      `labelByFormat` / `ruleByFormat` override the generic text once the input
      format is known, so the same column can read "URDF" or "MJCF".        */
   var FRAMEWORKS = [
@@ -117,6 +118,26 @@
         return dfsOrder(ctx.tree, ctx.siblingOrder);
       },
       naReason: 'na.urdfOnly'
+    },
+    {
+      id: 'pybullet',
+      label: { zh: 'PyBullet', en: 'PyBullet' },
+      // Default loadURDF (flags=0): ConvertURDF2BulletInternal recurses over
+      // getLinkChildIndices(), which follows m_childLinks filled in joint
+      // document order — DFS with document-order siblings. Unlike Isaac /
+      // MuJoCo / Gazebo, getJointInfo includes every child link's joint,
+      // fixed ones included (base is index -1, not a joint).
+      rule: { zh: 'DFS（含 fixed 关节）', en: 'depth-first, including fixed joints' },
+      holdsFixed: true,
+      holdsFreeBase: false,
+      siblingOrder: 'document',
+      compute: function (ctx) {
+        // MJCF weld edges keep the body tree connected but are not joints
+        // PyBullet would name; drop them so the column stays joint-valued.
+        return dfsOrder(ctx.tree, ctx.siblingOrder).filter(function (j) {
+          return j.type !== 'weld';
+        });
+      }
     },
     {
       id: 'ros2control',
@@ -253,9 +274,10 @@
       } catch (e) {
         seq = null;
       }
-      // A simulator creates no joint at all for a URDF fixed joint, so it can
-      // never appear in those columns — the toggle only reveals fixed joints
-      // in the frameworks whose joint list can actually contain them.
+      // Most simulators create no joint at all for a URDF fixed joint, so it
+      // can never appear in those columns. PyBullet (and the URDF / ros2_control
+      // lists) do keep them; the toggle only reveals fixed joints in columns
+      // whose joint list can actually contain them.
       if (seq && (!showFixed || !fw.holdsFixed)) {
         seq = seq.filter(function (j) { return URDF.isMovable(j); });
       }
@@ -370,6 +392,14 @@
       body: {
         zh: '<p>只适用于 URDF：sdformat 不认 MJCF，载入 MJCF 时这一列显示为不适用。</p><p>Gazebo 不直接吃 URDF —— 它先用 sdformat 把 URDF 转成 SDF，模型里的关节顺序就是这次转换的产物。<code>parser_urdf.cc</code> 里的 <code>CreateSDF()</code> 递归遍历 <code>_link-&gt;child_links</code>，是<b>深度优先</b>。</p><p>关键在于 <code>child_links</code> 是谁填的：urdfdom 的 <code>initTree()</code> 遍历 <code>std::map</code> 类型的 <code>joints_</code> 来填充它，而 <code>std::map</code> 按 key 排序。所以 <b>Gazebo 的同层子关节是按关节名字母序排的，跟你在 URDF 里的书写顺序无关</b> —— 这一点和 MuJoCo / Isaac Gym 的 DFS（同层按文档顺序）不同，也是这一列存在的意义。</p><p><b>注意：</b>sdformat <b>默认会把 fixed 关节吸收掉</b>（把子 link 合并进父 link），除非加 <code>&lt;disableFixedJointLumping&gt;</code> 或 <code>&lt;preserveFixedJoint&gt;</code>（两者同时存在时后者优先）。另外 <code>gazebo_ros_joint_state_publisher</code> 插件发布的顺序取决于你在插件里列 <code>&lt;joint_name&gt;</code> 的顺序，<code>gz_ros2_control</code> 则走 <code>&lt;ros2_control&gt;</code> 标签，都与这一列无关。</p><p>来源：<a href="https://github.com/gazebosim/sdformat/blob/sdf14/src/parser_urdf.cc" target="_blank" rel="noopener">sdformat <code>parser_urdf.cc</code></a>、<a href="https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h" target="_blank" rel="noopener">urdfdom_headers <code>model.h</code></a></p>',
         en: '<p>URDF only: sdformat does not read MJCF, so this column is n/a for an MJCF input.</p><p>Gazebo does not consume URDF directly — sdformat converts it to SDF first, and the model\'s joint order is a product of that conversion. <code>CreateSDF()</code> in <code>parser_urdf.cc</code> recurses over <code>_link-&gt;child_links</code>, so the walk is <b>depth-first</b>.</p><p>What matters is who fills <code>child_links</code>: urdfdom\'s <code>initTree()</code> populates it by iterating <code>joints_</code>, a <code>std::map</code>, which is sorted by key. So <b>Gazebo orders sibling joints alphabetically by joint name, regardless of how the URDF is written</b> — unlike MuJoCo / Isaac Gym depth-first, whose siblings follow document order. That difference is why this column exists.</p><p><b>Note:</b> sdformat <b>lumps fixed joints away by default</b> (merging the child link into its parent) unless <code>&lt;disableFixedJointLumping&gt;</code> or <code>&lt;preserveFixedJoint&gt;</code> is set (the latter wins when both appear). Separately, the <code>gazebo_ros_joint_state_publisher</code> plugin publishes in the order you list <code>&lt;joint_name&gt;</code> in the plugin, and <code>gz_ros2_control</code> follows the <code>&lt;ros2_control&gt;</code> tag — neither matches this column.</p><p>Sources: <a href="https://github.com/gazebosim/sdformat/blob/sdf14/src/parser_urdf.cc" target="_blank" rel="noopener">sdformat <code>parser_urdf.cc</code></a>, <a href="https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h" target="_blank" rel="noopener">urdfdom_headers <code>model.h</code></a></p>'
+      }
+    },
+    {
+      id: 'pybullet',
+      verify: 'import pybullet as p\np.connect(p.DIRECT)\nbid = p.loadURDF("robot.urdf")\nprint([p.getJointInfo(bid, i)[1].decode() for i in range(p.getNumJoints(bid))])',
+      body: {
+        zh: '<p>PyBullet 的 <code>loadURDF</code> 默认（<code>flags=0</code>）从根 link 递归调用 <code>ConvertURDF2BulletInternal()</code>，按 <code>getLinkChildIndices()</code> 处理每个子 link，是<b>深度优先</b>。</p><p>子 link 数组来自 <code>UrdfParser::initTreeAndRoot()</code>：它按 <code>m_joints</code> 的插入顺序（即 <code>&lt;joint&gt;</code> 的文档顺序）<code>push_back</code> 到父 link 的 <code>m_childLinks</code>。所以 <b>同层子关节按 URDF 书写顺序</b>，和 Isaac Gym / MuJoCo 的 DFS 一样，和 Gazebo 的字母序不同。</p><p><b>和 Isaac / MuJoCo / Gazebo 的关键差别：</b>每个 child link 对应一个关节下标，<code>getNumJoints</code> / <code>getJointInfo</code> <b>默认包含 fixed 关节</b>（基座 link 的 index 是 -1，不是关节）。fixed 占一个关节下标，但不占自由度。勾选「显示 fixed 关节」才能看到与运行时下标一致的完整列表；默认对照表只列出可动关节。</p><p><b>注意：</b><code>URDF_MAINTAIN_LINK_ORDER</code> 会改成按 <code>&lt;link&gt;</code> 声明顺序编号（要求父 link 写在子 link 前面）；<code>URDF_MERGE_FIXED_LINKS</code> 会把 fixed 关节合并掉。本列按默认 flags 计算。<code>useFixedBase=False</code>（默认）时根 link 是自由浮动的基座，不出现在关节列表里。</p><p>PyBullet 也能 <code>loadMJCF</code>，走同一套 DFS 转换；Bullet 的 MJCF 导入器并不完整，焊死的 body 有时会多出 unnamed fixed 关节，请以运行时打印为准。</p><p>来源：<a href="https://github.com/bulletphysics/bullet3/blob/master/examples/Importers/ImportURDFDemo/URDF2Bullet.cpp" target="_blank" rel="noopener">bullet3 <code>URDF2Bullet.cpp</code></a>、<a href="https://github.com/bulletphysics/bullet3/blob/master/examples/Importers/ImportURDFDemo/UrdfParser.cpp" target="_blank" rel="noopener">bullet3 <code>UrdfParser.cpp</code></a></p>',
+        en: '<p>PyBullet\'s <code>loadURDF</code> (default <code>flags=0</code>) starts at the root link and recurses with <code>ConvertURDF2BulletInternal()</code>, walking <code>getLinkChildIndices()</code> — a <b>depth-first</b> walk.</p><p>The child-link array comes from <code>UrdfParser::initTreeAndRoot()</code>, which <code>push_back</code>s onto the parent\'s <code>m_childLinks</code> in <code>m_joints</code> insertion order, i.e. <code>&lt;joint&gt;</code> document order. So <b>siblings follow URDF writing order</b>, matching Isaac Gym / MuJoCo depth-first and unlike Gazebo\'s alphabetical siblings.</p><p><b>The difference versus Isaac / MuJoCo / Gazebo:</b> every child link occupies a joint index, so <code>getNumJoints</code> / <code>getJointInfo</code> <b>include fixed joints by default</b> (the base link is index -1, not a joint). A fixed joint takes a slot but no DOF. Tick “show fixed joints” to see the full list that matches runtime indices; the default table lists movable joints only.</p><p><b>Note:</b> <code>URDF_MAINTAIN_LINK_ORDER</code> numbers links in <code>&lt;link&gt;</code> declaration order (parents must appear before children); <code>URDF_MERGE_FIXED_LINKS</code> folds fixed joints away. This column uses the default flags. With <code>useFixedBase=False</code> (the default) the root link is a free-floating base and never appears in the joint list.</p><p>PyBullet can also <code>loadMJCF</code>, using the same DFS conversion. Bullet\'s MJCF importer is incomplete and may emit extra unnamed fixed joints for welded bodies — trust the names your runtime prints.</p><p>Sources: <a href="https://github.com/bulletphysics/bullet3/blob/master/examples/Importers/ImportURDFDemo/URDF2Bullet.cpp" target="_blank" rel="noopener">bullet3 <code>URDF2Bullet.cpp</code></a>, <a href="https://github.com/bulletphysics/bullet3/blob/master/examples/Importers/ImportURDFDemo/UrdfParser.cpp" target="_blank" rel="noopener">bullet3 <code>UrdfParser.cpp</code></a></p>'
       }
     },
     {
