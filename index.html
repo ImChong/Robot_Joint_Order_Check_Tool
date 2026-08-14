@@ -10,10 +10,10 @@
 </head>
 <body>
 
-<header class="topbar">
-  <div class="wrap topbar-inner">
-    <div class="brand">
-      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="site-title" href="./" aria-label="Robot Joint Order Check Tool">
+      <svg class="site-mark" viewBox="0 0 32 32" aria-hidden="true">
         <rect width="32" height="32" rx="7" fill="currentColor"/>
         <g fill="#fff" stroke="#fff">
           <path d="M9 9 L23 16 L9 23" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
@@ -22,17 +22,17 @@
           <circle cx="9" cy="23" r="3.2" stroke="none"/>
         </g>
       </svg>
-      <div class="brand-text">
+      <span class="site-title-text">
         <strong data-i18n="app.title">机器人关节顺序检查工具</strong>
-        <span data-i18n="app.subtitle">比较 URDF 在各仿真器 / 框架中的关节顺序</span>
-      </div>
-    </div>
-    <div class="topbar-actions">
-      <button type="button" class="btn btn-ghost" id="langToggle" title="中文 / English">EN</button>
-      <button type="button" class="btn btn-ghost" id="themeToggle" data-i18n-title="ui.theme" title="切换主题">
+        <small data-i18n="app.subtitle">比较 URDF 在各仿真器 / 框架中的关节顺序</small>
+      </span>
+    </a>
+    <div class="header-right">
+      <a class="github-link" id="repoLink" href="https://github.com/ImChong/Robot_Joint_Order_Check_Tool" target="_blank" rel="noopener">GitHub</a>
+      <button type="button" class="lang-toggle" id="langToggle" title="中文 / English" aria-label="Switch language">EN</button>
+      <button type="button" class="theme-toggle" id="themeToggle" data-i18n-title="ui.theme" title="切换主题" aria-label="Toggle dark mode">
         <span id="themeIcon">◐</span>
       </button>
-      <a class="btn btn-ghost" id="repoLink" href="https://github.com/ImChong/Robot_Joint_Order_Check_Tool" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
 </header>
