@@ -119,3 +119,9 @@ URDF itself defines no joint order, so each downstream tool imposes its own: ROS
 Everything runs client-side — no upload, no build step. Live at <https://imchong.github.io/Robot_Joint_Order_Check_Tool/>; run locally with `python3 -m http.server 8000`.
 
 See the sections above for the exact ordering rule per framework, the sources they are derived from, and the known limitations (expanded URDF only; static derivation — always confirm against the joint names your runtime prints).
+
+---
+
+## 许可证 / License
+
+[MIT](LICENSE) © 2026 Chong Liu
