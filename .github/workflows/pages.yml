@@ -3,23 +3,17 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
+# Minimal by default; the deploy job widens this for itself only, so pull
+# request runs (including from forks) never get a Pages-writable token.
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-# Allow one concurrent deployment; queued runs supersede each other.
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  check:
+    name: Check generated files
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +23,26 @@ jobs:
           node tools/export-samples.mjs
           git diff --exit-code -- samples/ \
             || (echo "::error::samples/*.urdf are stale — run 'node tools/export-samples.mjs' and commit." && exit 1)
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: check
+    # Pull requests only run the check above — never a production deploy.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Scoped to this job so a pull request check can never cancel a live deploy.
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/configure-pages@v5
 
