@@ -14,7 +14,7 @@
     analysis: null,
     view: 'byindex',
     codeLang: 'python',
-    opts: { refId: 'urdf', siblingOrder: 'document', ros2cMode: 'urdf', showFixed: false }
+    opts: { refId: 'urdf', siblingOrder: 'auto', ros2cMode: 'urdf', showFixed: false }
   };
 
   var $ = function (sel) { return document.querySelector(sel); };
@@ -649,9 +649,10 @@
   /* ── Rules reference ───────────────────────────────────────────── */
   function renderRules() {
     var host = $('#rulesList');
-    host.innerHTML = Orderings.RULE_DOCS.map(function (doc) {
-      var fw = Orderings.FRAMEWORKS.filter(function (f) { return f.id === doc.id; })[0];
-      if (!fw) return '';
+    // Driven by FRAMEWORKS so the rule cards always match the table's column order.
+    host.innerHTML = Orderings.FRAMEWORKS.map(function (fw) {
+      var doc = Orderings.RULE_DOCS.filter(function (d) { return d.id === fw.id; })[0];
+      if (!doc) return '';
       return '<details class="rule"><summary>' + esc(Orderings.labelOf(fw, lang())) +
              ' <span class="rule-key">' + esc(Orderings.ruleOf(fw, lang())) + '</span></summary>' +
              '<div class="rule-body">' + (doc.body[lang()] || doc.body.en) + '</div></details>';

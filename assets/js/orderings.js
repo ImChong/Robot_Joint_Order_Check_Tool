@@ -60,24 +60,11 @@
       compute: function (ctx) { return ctx.model.joints.slice(); }
     },
     {
-      id: 'ros',
-      label: { zh: 'ROS (urdf::Model)', en: 'ROS (urdf::Model)' },
-      rule: { zh: '关节名字母序（std::map）', en: 'alphabetical by name (std::map)' },
-      holdsFixed: true,
-      compute: function (ctx) { return ctx.model.joints.slice().sort(byName); }
-    },
-    {
-      id: 'mujoco',
-      label: { zh: 'MuJoCo', en: 'MuJoCo' },
-      rule: { zh: 'body 树深度优先（DFS）', en: 'depth-first over body tree' },
-      holdsFixed: false,
-      compute: function (ctx) { return dfsOrder(ctx.tree, ctx.siblingOrder); }
-    },
-    {
       id: 'isaacgym',
       label: { zh: 'Isaac Gym (Preview)', en: 'Isaac Gym (Preview)' },
       rule: { zh: '运动学树深度优先（DFS）', en: 'depth-first over kinematic tree' },
       holdsFixed: false,
+      siblingOrder: 'document',
       compute: function (ctx) { return dfsOrder(ctx.tree, ctx.siblingOrder); }
     },
     {
@@ -85,7 +72,27 @@
       label: { zh: 'Isaac Sim / Isaac Lab', en: 'Isaac Sim / Isaac Lab' },
       rule: { zh: '运动学树广度优先（BFS）', en: 'breadth-first over kinematic tree' },
       holdsFixed: false,
+      siblingOrder: 'document',
       compute: function (ctx) { return bfsOrder(ctx.tree, ctx.siblingOrder); }
+    },
+    {
+      id: 'mujoco',
+      label: { zh: 'MuJoCo', en: 'MuJoCo' },
+      rule: { zh: 'body 树深度优先（DFS）', en: 'depth-first over body tree' },
+      holdsFixed: false,
+      siblingOrder: 'document',
+      compute: function (ctx) { return dfsOrder(ctx.tree, ctx.siblingOrder); }
+    },
+    {
+      id: 'gazebo',
+      label: { zh: 'Gazebo (SDF)', en: 'Gazebo (SDF)' },
+      // sdformat recurses over urdf::Link::child_links, which urdfdom fills by
+      // iterating its alphabetically-sorted joints_ map — so siblings come out
+      // alphabetical no matter how the URDF is written.
+      rule: { zh: 'DFS，同层按关节名字母序', en: 'depth-first, siblings alphabetical' },
+      holdsFixed: false,
+      siblingOrder: 'alphabetical',
+      compute: function (ctx) { return dfsOrder(ctx.tree, ctx.siblingOrder); }
     },
     {
       id: 'ros2control',
@@ -157,15 +164,18 @@
    */
   function analyze(model, tree, opts) {
     opts = opts || {};
-    var ctx = {
-      model: model,
-      tree: tree,
-      siblingOrder: opts.siblingOrder || 'document',
-      ros2cMode: opts.ros2cMode || 'urdf'
-    };
     var showFixed = !!opts.showFixed;
+    // 'auto' honours each framework's own sibling rule; the other values force
+    // one rule across every column so the effect can be inspected directly.
+    var override = opts.siblingOrder || 'auto';
 
     var columns = FRAMEWORKS.map(function (fw) {
+      var ctx = {
+        model: model,
+        tree: tree,
+        ros2cMode: opts.ros2cMode || 'urdf',
+        siblingOrder: override === 'auto' ? (fw.siblingOrder || 'document') : override
+      };
       var seq = null;
       try {
         seq = fw.compute(ctx);
@@ -254,13 +264,6 @@
       }
     },
     {
-      id: 'ros',
-      body: {
-        zh: '<p><code>urdf::Model</code> 把关节存进 <code>std::map&lt;std::string, JointSharedPtr&gt; joints_</code>，因此遍历时是<b>按关节名字母序</b>，而不是文件顺序。<code>initTree()</code> 也是遍历这个 map 来填充 <code>child_links</code> / <code>child_joints</code>，所以连 KDL 树里同一层子节点的顺序也是字母序。</p><p><b>注意：</b><code>sensor_msgs/JointState</code> 本身没有顺序保证 —— 顺序由发布者决定，消费方必须按 <code>name[]</code> 字段做匹配，绝不能假设索引。<code>joint_state_publisher</code>（Python，按文档顺序解析 XML）和 Gazebo 插件的顺序都可能与这一列不同。</p><p>来源：<a href="https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h" target="_blank" rel="noopener">urdfdom_headers <code>model.h</code></a></p>',
-        en: '<p><code>urdf::Model</code> stores joints in <code>std::map&lt;std::string, JointSharedPtr&gt; joints_</code>, so iterating them yields <b>alphabetical order by joint name</b>, not file order. <code>initTree()</code> walks that same map to fill <code>child_links</code>/<code>child_joints</code>, so even sibling order inside the resulting KDL tree is alphabetical.</p><p><b>Note:</b> <code>sensor_msgs/JointState</code> guarantees no ordering at all — the publisher decides, and consumers must match on the <code>name[]</code> field rather than assume indices. <code>joint_state_publisher</code> (Python, parses the XML in document order) and Gazebo plugins may each differ from this column.</p><p>Source: <a href="https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h" target="_blank" rel="noopener">urdfdom_headers <code>model.h</code></a></p>'
-      }
-    },
-    {
       id: 'mujoco',
       body: {
         zh: '<p>MuJoCo 的 URDF 导入器先把所有 link 读进来，再按 <code>&lt;joint&gt;</code> 的文档顺序填充 <code>urChildren[parent].push_back(child)</code>，然后从根 body 递归 <code>AddToTree()</code>。结果就是 <b>body 树的深度优先前序遍历，同层子 body 按 URDF 里关节出现的先后排列</b>；关节 id 随 body 创建顺序递增。</p><p><b>注意：</b>URDF 的 <code>fixed</code> 关节在 MJCF 里不会生成任何 joint（只是 body 嵌套），所以不占 qpos；<code>planar</code> 会被展开成 2 个 slide + 1 个 hinge；<code>&lt;mimic&gt;</code> 被完全忽略。运行时用 <code>mj_id2name(m, mjOBJ_JOINT, i)</code> 核对。</p><p>来源：<a href="https://github.com/google-deepmind/mujoco/blob/main/src/xml/xml_urdf.cc" target="_blank" rel="noopener">mujoco <code>xml_urdf.cc</code></a></p>',
@@ -279,6 +282,13 @@
       body: {
         zh: '<p>官方文档原文：“Physics simulation in Isaac Sim and Isaac Lab assumes a <b>breadth-first</b> ordering for the joints in a given kinematic tree. However, Isaac Gym Preview Release assumed a <b>depth-first</b> ordering.” 也就是 PhysX stage parser 按<b>广度优先</b>（逐层）排列关节。</p><p>同一个四足机器人在这里是 <code>FL_hip, FR_hip, RL_hip, RR_hip, FL_thigh, …</code> —— 先排完所有髋关节，再排所有大腿。</p><p><b>注意：</b>运行时用 <code>robot.data.joint_names</code> 核对，用 <code>ArticulationCfg</code> 的 <code>joint_names_expr</code> 或 <code>find_joints()</code> 做重映射，不要硬编码索引。</p><p>来源：<a href="https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_isaacgymenvs.html" target="_blank" rel="noopener">Isaac Lab — Migrating from IsaacGymEnvs</a></p>',
         en: '<p>Straight from the docs: “Physics simulation in Isaac Sim and Isaac Lab assumes a <b>breadth-first</b> ordering for the joints in a given kinematic tree. However, Isaac Gym Preview Release assumed a <b>depth-first</b> ordering.” The PhysX stage parser walks the tree level by level.</p><p>The same quadruped comes out as <code>FL_hip, FR_hip, RL_hip, RR_hip, FL_thigh, …</code> — all hips first, then all thighs.</p><p><b>Note:</b> verify at runtime with <code>robot.data.joint_names</code>, and remap with <code>joint_names_expr</code> / <code>find_joints()</code> instead of hard-coding indices.</p><p>Source: <a href="https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_isaacgymenvs.html" target="_blank" rel="noopener">Isaac Lab — Migrating from IsaacGymEnvs</a></p>'
+      }
+    },
+    {
+      id: 'gazebo',
+      body: {
+        zh: '<p>Gazebo 不直接吃 URDF —— 它先用 sdformat 把 URDF 转成 SDF，模型里的关节顺序就是这次转换的产物。<code>parser_urdf.cc</code> 里的 <code>CreateSDF()</code> 递归遍历 <code>_link-&gt;child_links</code>，是<b>深度优先</b>。</p><p>关键在于 <code>child_links</code> 是谁填的：urdfdom 的 <code>initTree()</code> 遍历 <code>std::map</code> 类型的 <code>joints_</code> 来填充它，而 <code>std::map</code> 按 key 排序。所以 <b>Gazebo 的同层子关节是按关节名字母序排的，跟你在 URDF 里的书写顺序无关</b> —— 这一点和 MuJoCo / Isaac Gym 的 DFS（同层按文档顺序）不同，也是这一列存在的意义。</p><p><b>注意：</b>sdformat <b>默认会把 fixed 关节吸收掉</b>（把子 link 合并进父 link），除非加 <code>&lt;disableFixedJointLumping&gt;</code> 或 <code>&lt;preserveFixedJoint&gt;</code>（两者同时存在时后者优先）。另外 <code>gazebo_ros_joint_state_publisher</code> 插件发布的顺序取决于你在插件里列 <code>&lt;joint_name&gt;</code> 的顺序，<code>gz_ros2_control</code> 则走 <code>&lt;ros2_control&gt;</code> 标签，都与这一列无关。</p><p>来源：<a href="https://github.com/gazebosim/sdformat/blob/sdf14/src/parser_urdf.cc" target="_blank" rel="noopener">sdformat <code>parser_urdf.cc</code></a>、<a href="https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h" target="_blank" rel="noopener">urdfdom_headers <code>model.h</code></a></p>',
+        en: '<p>Gazebo does not consume URDF directly — sdformat converts it to SDF first, and the model\'s joint order is a product of that conversion. <code>CreateSDF()</code> in <code>parser_urdf.cc</code> recurses over <code>_link-&gt;child_links</code>, so the walk is <b>depth-first</b>.</p><p>What matters is who fills <code>child_links</code>: urdfdom\'s <code>initTree()</code> populates it by iterating <code>joints_</code>, a <code>std::map</code>, which is sorted by key. So <b>Gazebo orders sibling joints alphabetically by joint name, regardless of how the URDF is written</b> — unlike MuJoCo / Isaac Gym depth-first, whose siblings follow document order. That difference is why this column exists.</p><p><b>Note:</b> sdformat <b>lumps fixed joints away by default</b> (merging the child link into its parent) unless <code>&lt;disableFixedJointLumping&gt;</code> or <code>&lt;preserveFixedJoint&gt;</code> is set (the latter wins when both appear). Separately, the <code>gazebo_ros_joint_state_publisher</code> plugin publishes in the order you list <code>&lt;joint_name&gt;</code> in the plugin, and <code>gz_ros2_control</code> follows the <code>&lt;ros2_control&gt;</code> tag — neither matches this column.</p><p>Sources: <a href="https://github.com/gazebosim/sdformat/blob/sdf14/src/parser_urdf.cc" target="_blank" rel="noopener">sdformat <code>parser_urdf.cc</code></a>, <a href="https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h" target="_blank" rel="noopener">urdfdom_headers <code>model.h</code></a></p>'
       }
     },
     {
