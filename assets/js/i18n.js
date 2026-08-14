@@ -90,8 +90,7 @@
       'chip.ref': '参照',
       'chip.na': '不适用',
 
-      'footer.disclaimer': '静态推导结果仅供排查，请以运行时打印的关节名列表为准。',
-      'footer.local': '纯前端 · 数据不出浏览器'
+      'footer.disclaimer': '静态推导结果仅供排查，请以运行时打印的关节名列表为准。'
     },
 
     en: {
@@ -181,8 +180,7 @@
       'chip.ref': 'reference',
       'chip.na': 'n/a',
 
-      'footer.disclaimer': 'Statically derived — for triage only. Trust the joint names your runtime prints.',
-      'footer.local': 'Fully client-side · your data never leaves the browser'
+      'footer.disclaimer': 'Statically derived — for triage only. Trust the joint names your runtime prints.'
     }
   };
 
