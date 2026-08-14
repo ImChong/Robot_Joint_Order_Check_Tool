@@ -101,7 +101,8 @@
       'chip.ref': '参照',
       'chip.na': '不适用',
 
-      'footer.disclaimer': '静态推导结果仅供排查，请以运行时打印的关节名列表为准。'
+      'footer.disclaimer': '静态推导结果仅供排查，请以运行时打印的关节名列表为准。',
+      'footer.author': '刘冲'
     },
 
     en: {
@@ -202,7 +203,8 @@
       'chip.ref': 'reference',
       'chip.na': 'n/a',
 
-      'footer.disclaimer': 'Statically derived — for triage only. Trust the joint names your runtime prints.'
+      'footer.disclaimer': 'Statically derived — for triage only. Trust the joint names your runtime prints.',
+      'footer.author': 'Chong Liu'
     }
   };
 
