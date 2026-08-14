@@ -5,9 +5,6 @@
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-brightgreen?logo=github)](https://imchong.github.io/Robot_Joint_Order_Check_Tool/)
 [![Deploy GitHub Pages](https://github.com/ImChong/Robot_Joint_Order_Check_Tool/actions/workflows/pages.yml/badge.svg)](https://github.com/ImChong/Robot_Joint_Order_Check_Tool/actions/workflows/pages.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Frameworks](https://img.shields.io/badge/对照框架-6_列-blue?logo=robotframework&logoColor=white)](#为什么需要这个工具)
-[![Samples](https://img.shields.io/badge/内置示例-3_个-orange)](samples/)
-[![Build](https://img.shields.io/badge/构建-零依赖_纯静态-brightgreen?logo=html5&logoColor=white)](#本地运行)
 [![Privacy](https://img.shields.io/badge/URDF-浏览器本地解析-informational?logo=firefoxbrowser&logoColor=white)](#功能)
 [![i18n](https://img.shields.io/badge/界面-中文_%7C_English-lightgrey)](#english)
 
