@@ -208,6 +208,35 @@ eq(namesOf(col(mobFixed, 'pybullet')).includes('gripper_mount'), true,
 eq(Orderings.FRAMEWORKS.every((fw) => Orderings.RULE_DOCS.some((d) => d.id === fw.id)), true,
   'every framework column has a RULE_DOCS entry');
 
+/* Root-node quaternion: every card documents one, in both languages. */
+const QUAT_ORDERS = ['wxyz', 'xyzw', 'mixed'];
+eq(Orderings.RULE_DOCS.filter((d) => !d.quat).map((d) => d.id), [],
+  'every rule card documents the root-node quaternion');
+eq(Orderings.RULE_DOCS.filter((d) => !QUAT_ORDERS.includes(d.quat.order)).map((d) => d.id), [],
+  'every quaternion order is one of ' + QUAT_ORDERS.join(' / '));
+eq(Orderings.RULE_DOCS.filter((d) => !d.quat.code || !d.quat.note.zh || !d.quat.note.en).map((d) => d.id), [],
+  'every quaternion entry carries a retrieval command and a bilingual note');
+/* 'mixed' is for the columns whose answer needs more than a component list —
+   those must spell the chip out themselves, the other two must not. */
+eq(Orderings.RULE_DOCS.filter((d) => (d.quat.order === 'mixed') !== !!d.quat.chip).map((d) => d.id), [],
+  'only the mixed columns override the chip text');
+eq(['zh', 'en'].every((l) => Orderings.RULE_DOCS.every((d) => Orderings.quatChipOf(d, l))), true,
+  'every quaternion chip resolves to text in both languages');
+
+eq(Orderings.RULE_DOCS.filter((d) => d.quat.order === 'wxyz').map((d) => d.id),
+  ['mujoco', 'genesis', 'mjcfctrl'], 'scalar-first (w, x, y, z) columns');
+eq(Orderings.RULE_DOCS.filter((d) => d.quat.order === 'xyzw').map((d) => d.id),
+  ['isaacgym', 'newton', 'gazebo', 'pybullet', 'ros2control'], 'scalar-last (x, y, z, w) columns');
+eq(Orderings.RULE_DOCS.filter((d) => d.quat.order === 'mixed').map((d) => d.id),
+  ['file', 'isaacsim'], 'columns whose quaternion order needs a caveat');
+/* MuJoCo, Genesis and Newton share one joint order but not one quaternion —
+   the pairing this section exists to make visible. */
+const quatOf = (id) => Orderings.RULE_DOCS.find((d) => d.id === id).quat.order;
+eq(quatOf('genesis') === quatOf('mujoco') && quatOf('newton') !== quatOf('mujoco'), true,
+  'Newton breaks with MuJoCo / Genesis on quaternion order despite matching joint order');
+eq(Orderings.quatChipOf({ quat: { order: 'xyzw' } }, 'zh'), 'x, y, z, w',
+  'a chip with no override falls back to the component list');
+
 /* MJCF weld edges must not leak into the PyBullet column. */
 const mjcfJoints = [
   J('root', 'free', 'world', 'torso'),

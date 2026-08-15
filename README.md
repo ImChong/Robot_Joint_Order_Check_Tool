@@ -89,6 +89,7 @@ Gazebo 和 ros2_control 不读 MJCF，载入 MJCF 时这两列显示为「不适
 - **索引重映射代码生成**：选好源框架和目标框架，直接产出可粘贴的 Python / C++ 索引数组
 - 导出 CSV 与完整 JSON
 - 运动学树可视化、关节类型与 DOF 列表
+- **各框架根节点四元数**的分量顺序（`w,x,y,z` 还是 `x,y,z,w`）与获取命令，逐个列在顺序规则卡片里
 - 自动提示常见坑：未展开的 xacro、mimic 关节 / MJCF 的 `<equality>`、多自由度关节（floating / planar / ball）、浮动基座、多根链接、成环、只在 joint 里引用却没定义的 link、MJCF 的 `<include>` 与重名元素
 - 中英文界面切换、明暗主题
 
@@ -110,6 +111,40 @@ Gazebo 和 ros2_control 不读 MJCF，载入 MJCF 时这两列显示为「不适
 3. 显式设置了 `joints` + `interfaces` 参数 → 按 `joints` 参数的顺序（本工具读不到 YAML，这种情况请以你的配置为准）
 
 注意各控制器（如 `joint_trajectory_controller`）用的是各自 YAML 里 `joints` 参数的顺序，与上面无关。
+
+## 各框架的根节点四元数
+
+关节顺序只是搬运策略时的一半问题。跟着关节向量一起走的还有**基座姿态**，而它是个四元数 —— 各框架在「标量放前面还是后面」上分成了势均力敌的两派，错了同样不报错。页面「各框架的顺序规则」一节里每张卡片都带一个颜色区分的分量顺序标签（蓝＝标量在前，橙＝标量在后），展开后有获取命令和注意事项：
+
+| 框架 | 分量顺序 | 获取根节点四元数 |
+| --- | --- | --- |
+| URDF 文件 | **没有四元数** | `<origin rpy="…">`，绕固定轴 X→Y→Z 的欧拉角，**恒为弧度** |
+| MJCF 文件 | `w, x, y, z` | `<body quat="w x y z">`（默认 `1 0 0 0`）；也可用 `euler` / `axisangle`，角度单位默认是**度** |
+| MuJoCo | `w, x, y, z` | `d.qpos[adr+3 : adr+7]`（`adr = m.jnt_qposadr[jid]`）、`d.body("pelvis").xquat` |
+| Isaac Gym (Preview) | `x, y, z, w` | `root_states[:, 3:7]`（每行 13 = 位置 3 + 四元数 4 + 线速度 3 + 角速度 3） |
+| Isaac Sim / Isaac Lab | `w, x, y, z`（**3.0 起 `x, y, z, w`**） | `robot.data.root_quat_w`、`view.get_world_poses()[1]` |
+| Genesis | `w, x, y, z` | `robot.get_quat()`、`robot.get_qpos()[3:7]` |
+| Newton (Warp) | `x, y, z, w` | `state.body_q.numpy()[0][3:7]`（`wp.transform` = `[px py pz qx qy qz qw]`） |
+| Gazebo (SDF) | `x, y, z, w`（消息层） | `gz topic -e -t /model/<name>/pose`；但 C++ 的 `gz::math::Quaterniond(w, x, y, z)` 是 **w 在前** |
+| PyBullet | `x, y, z, w` | `p.getBasePositionAndOrientation(bid)[1]`，单位四元数 `[0, 0, 0, 1]` |
+| ros2_control | `x, y, z, w` | `/joint_states` 里**没有**基座姿态，走 TF：`ros2 run tf2_ros tf2_echo odom base_link` |
+
+三个最容易踩的地方：
+
+- **MuJoCo / Genesis / Newton 的关节顺序完全一样，四元数顺序却不一样** —— Genesis 跟 MuJoCo 都是 `wxyz`，Newton 跟着 Warp 走 `xyzw`。「顺序一样」推不出「约定一样」，两件事各查各的
+- **Isaac Lab 3.0 把默认约定从 `wxyz` 改成了 `xyzw`**（对齐 PhysX / Warp / Newton）。这是个破坏性变更，硬编码的 `(1, 0, 0, 0)`、以及没走 `isaaclab.utils.math` 的自定义 MDP 函数升级后全是错的。最快的确认方式是打印一个已知是单位姿态的四元数，看 `1.0` 落在第 0 位还是第 3 位
+- **Gazebo 内部两种顺序并存**：消息层（`gz.msgs` / `geometry_msgs`）是 `x, y, z, w`，C++ 数学库（`gz::math::Quaterniond`、`Pose3d`）是 `w` 在前。把消息里的四元数直接塞进构造函数是插件里的经典 bug
+
+另外 URDF 和 SDF 的**文件**里根本没有四元数，`<origin rpy>` / `<pose>` 都是欧拉角（SDFormat 1.9 起可写 `<pose rotation_format="quat_xyzw">`）。而且 **URDF 恒为弧度、MJCF 默认是度** —— 这一条比分量顺序更容易翻车。
+
+四元数约定的出处：
+
+- Isaac Gym vs Isaac Lab：[Migrating from IsaacGymEnvs](https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_isaacgymenvs.html)
+  > Isaac Lab and Isaac Sim both adopt `wxyz` as the quaternion convention. However, the quaternion convention used in Isaac Gym Preview Release was `xyzw`.
+- Isaac Lab 3.0 的变更：[Isaac Lab 3.0 Beta](https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/newton-physics-integration/isaaclab_newton-beta-2.html)
+  > we decided to change our default convention to `xyzw`. This means that all our APIs will now return quaternions in the `xyzw` convention.
+- Newton / Warp：[Newton — Conventions](https://newton-physics.github.io/newton/stable/concepts/conventions.html)，页面里直接给了对照表和 `newton_quat = (isaac_quat[1], isaac_quat[2], isaac_quat[3], isaac_quat[0])`
+- SDFormat 的 `quat_xyzw`：[Specifying pose](http://sdformat.org/tutorials?tut=specify_pose)
 
 ## 顺序规则的依据
 
@@ -187,6 +222,8 @@ URDF itself defines no joint order, so each downstream tool imposes its own: MuJ
 **Genesis** and **Newton** both land on the same depth-first order as MuJoCo — Genesis because it hands the kinematic structure to MuJoCo's unified parser outright, Newton because `parse_urdf(joint_ordering="dfs")` sorts each node's children by joint id. What differs is what they put *around* your joints: Genesis merges fixed links away by default (`merge_fixed_links=True`) and prepends a synthetic free `root_joint` unless you pass `fixed=True`, while Newton keeps fixed joints as 0-DOF entries that still consume a joint index and always prepends a base joint of its own, so `model.joint_label[0]` is never your first joint. Newton is also the one importer that lets you pick: `joint_ordering="bfs"` reproduces the Isaac Sim column.
 
 **MJCF** is a different question: the XML nesting *is* the body tree, so the file order is the joint id order MuJoCo compiles to, and the interesting mismatch moves elsewhere — `data.ctrl` follows the `<actuator>` block, a separate vector, which gets its own column. The bundled Unitree G1 model is a live example: its official URDF and MJCF agree on joint order, but the MJCF's last four right-hand actuators (indices 39–42) are written `index_0, index_1, middle_0, middle_1` while the joints run `middle_0, middle_1, index_0, index_1`. Bodies with no joint (welds), `<default>` class inheritance, free/ball joints and `<equality>` constraints are all handled; `<include>` is not followed and is reported instead.
+
+**Root quaternions** get the same treatment, because the base orientation travels with the joint vector and the frameworks split almost evenly on component order. Each rule card carries a colour-coded chip — `w, x, y, z` for MuJoCo, Genesis and MJCF files, `x, y, z, w` for Isaac Gym, Newton, Gazebo messages, PyBullet and ROS — plus the call that prints it. Three things bite: MuJoCo, Genesis and Newton agree on joint order yet **not** on quaternion order (Newton follows Warp's `xyzw`); **Isaac Lab 3.0 switched its default from `wxyz` to `xyzw`** to match PhysX / Warp / Newton, a silent breaking change for hard-coded literals; and Gazebo carries both at once — `x, y, z, w` in messages, `w`-first in `gz::math::Quaterniond`. A URDF has no quaternion at all: `<origin rpy>` is Euler, always in radians, while MJCF defaults to degrees.
 
 Everything runs client-side — no upload, no build step. Live at <https://imchong.github.io/Robot_Joint_Order_Check_Tool/>; run locally with `python3 -m http.server 8000`.
 
