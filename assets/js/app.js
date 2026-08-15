@@ -826,7 +826,7 @@
              ' <span class="rule-key">' + esc(Orderings.ruleOf(fw, lang())) + '</span>' +
              quatChip(doc) + '</summary>' +
              '<div class="rule-body">' + (doc.body[lang()] || doc.body.en) +
-             quatBlock(doc) + verify + '</div></details>';
+             verify + quatBlock(doc) + '</div></details>';
     }).join('');
   }
 
