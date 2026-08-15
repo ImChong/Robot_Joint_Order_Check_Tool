@@ -1,5 +1,5 @@
 /**
- * Headless checks for the PyBullet column and the existing ordering rules.
+ * Headless checks for every framework column and its ordering rule.
  * No extra packages: the IIFE scripts are eval'd against a stub `window`,
  * and the kinematic trees are built by hand so we do not need a DOMParser.
  *
@@ -117,6 +117,9 @@ function run(model, opts) {
 }
 
 const ids = Orderings.FRAMEWORKS.map((fw) => fw.id);
+eq(ids.indexOf('genesis'), ids.indexOf('mujoco') + 1, 'Genesis sits immediately after MuJoCo');
+eq(ids.indexOf('newton'), ids.indexOf('genesis') + 1, 'Newton sits immediately after Genesis');
+eq(ids.indexOf('gazebo'), ids.indexOf('newton') + 1, 'Gazebo sits immediately after Newton');
 eq(ids.indexOf('pybullet'), ids.indexOf('gazebo') + 1, 'PyBullet sits immediately after Gazebo');
 eq(ids.indexOf('ros2control'), ids.indexOf('pybullet') + 1, 'ros2_control sits immediately after PyBullet');
 
@@ -124,6 +127,19 @@ const py = Orderings.FRAMEWORKS.find((fw) => fw.id === 'pybullet');
 eq(!!py.holdsFixed, true, 'PyBullet holds fixed joints');
 eq(!!py.holdsFreeBase, false, 'PyBullet does not list the floating base as a joint');
 eq(py.siblingOrder, 'document', 'PyBullet siblings follow document order');
+
+const gen = Orderings.FRAMEWORKS.find((fw) => fw.id === 'genesis');
+eq(gen.holdsFixed({ model: { format: 'urdf' } }), false,
+  'Genesis merges fixed links away for a URDF (merge_fixed_links=True)');
+eq(gen.holdsFixed({ model: { format: 'mjcf' } }), true,
+  'Genesis keeps a jointless MJCF body as a fixed joint');
+eq(!!gen.holdsFreeBase, true, 'Genesis lists the floating base as a joint');
+eq(gen.siblingOrder, 'document', 'Genesis siblings follow document order');
+
+const nt = Orderings.FRAMEWORKS.find((fw) => fw.id === 'newton');
+eq(!!nt.holdsFixed, true, 'Newton holds fixed joints (collapse_fixed_joints=False)');
+eq(!!nt.holdsFreeBase, true, 'Newton lists the floating base as a joint');
+eq(nt.siblingOrder, 'document', 'Newton siblings follow document order');
 
 const quad = run(quadruped(), { showFixed: false });
 eq(namesOf(col(quad, 'pybullet')), namesOf(col(quad, 'isaacgym')),
@@ -141,7 +157,16 @@ eq(
   'quadruped: PyBullet DFS differs from Isaac Sim BFS after the first hip'
 );
 
+eq(namesOf(col(quad, 'genesis')), namesOf(col(quad, 'mujoco')),
+  'quadruped: Genesis follows the MuJoCo body-tree DFS');
+eq(namesOf(col(quad, 'newton')), namesOf(col(quad, 'mujoco')),
+  'quadruped: Newton DFS matches MuJoCo on movable joints');
+
 const quadFixed = run(quadruped(), { showFixed: true });
+eq(namesOf(col(quadFixed, 'newton')), namesOf(col(quadFixed, 'pybullet')),
+  'quadruped: Newton keeps fixed joints in the vector, like PyBullet');
+eq(namesOf(col(quadFixed, 'genesis')).indexOf('FL_foot_fixed'), -1,
+  'quadruped: Genesis drops URDF fixed joints even when the toggle is on');
 eq(namesOf(col(quadFixed, 'pybullet')), [
   'FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint', 'FL_foot_fixed',
   'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint', 'FR_foot_fixed',
@@ -171,13 +196,17 @@ eq(namesOf(col(mob, 'gazebo'))[0], 'arm_shoulder_pan',
   'mobile arm: Gazebo alphabetical siblings put the arm first');
 eq(namesOf(col(mob, 'pybullet'))[0] !== namesOf(col(mob, 'gazebo'))[0], true,
   'mobile arm: PyBullet order differs from Gazebo');
+eq(namesOf(col(mob, 'genesis')), namesOf(col(mob, 'pybullet')),
+  'mobile arm: Genesis keeps URDF sibling order, unlike Gazebo');
+eq(namesOf(col(mob, 'newton')), namesOf(col(mob, 'pybullet')),
+  'mobile arm: Newton sorts siblings by joint id, i.e. document order');
 
 const mobFixed = run(mobile(), { showFixed: true });
 eq(namesOf(col(mobFixed, 'pybullet')).includes('gripper_mount'), true,
   'mobile arm: PyBullet lists gripper_mount when showing fixed joints');
 
-eq(Orderings.RULE_DOCS.some((d) => d.id === 'pybullet'), true,
-  'PyBullet has a RULE_DOCS entry');
+eq(Orderings.FRAMEWORKS.every((fw) => Orderings.RULE_DOCS.some((d) => d.id === fw.id)), true,
+  'every framework column has a RULE_DOCS entry');
 
 /* MJCF weld edges must not leak into the PyBullet column. */
 const mjcfJoints = [
@@ -205,6 +234,24 @@ eq(namesOf(col(mjcfA, 'pybullet')).includes('root'), false,
   'MJCF: PyBullet drops the floating-base free joint');
 eq(namesOf(col(mjcfA, 'pybullet')), ['FL_hip', 'FL_thigh', 'FR_hip'],
   'MJCF: PyBullet DFS matches the body tree without the free base');
+
+/* Genesis / Newton keep the MJCF free base and the welded bodies. */
+eq(namesOf(col(mjcfA, 'newton')).includes('root'), true,
+  'MJCF: Newton lists the free base joint');
+eq(namesOf(col(mjcfA, 'newton')).includes('scene'), true,
+  'MJCF: Newton turns a jointless body into a fixed joint of its own');
+eq(namesOf(col(mjcfA, 'genesis')).includes('scene'), true,
+  'MJCF: Genesis does the same, naming that fixed joint after the body');
+
+const mjcfMovable = run(mjcfModel, { showFixed: false });
+eq(namesOf(col(mjcfMovable, 'newton')).includes('scene'), false,
+  'MJCF: the weld disappears from Newton once fixed joints are hidden');
+eq(namesOf(col(mjcfMovable, 'genesis')), ['root', 'FL_hip', 'FL_thigh', 'FR_hip'],
+  'MJCF: Genesis movable order keeps the free base at the head');
+eq(namesOf(col(mjcfMovable, 'genesis')), namesOf(col(mjcfMovable, 'mujoco')),
+  'MJCF: Genesis matches the MuJoCo joint order');
+eq(namesOf(col(mjcfMovable, 'newton')), namesOf(col(mjcfMovable, 'mujoco')),
+  'MJCF: Newton matches it too once the welds are hidden');
 
 out.push('');
 out.push(failed ? failed + ' failed' : 'ALL PASSED');

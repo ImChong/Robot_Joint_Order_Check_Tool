@@ -8,7 +8,7 @@
 [![Privacy](https://img.shields.io/badge/URDF_%7C_MJCF-浏览器本地解析-informational?logo=firefoxbrowser&logoColor=white)](#功能)
 [![i18n](https://img.shields.io/badge/界面-中文_%7C_English-lightgrey)](#english)
 
-上传一个 **URDF 或 MuJoCo MJCF（.xml）**，把它在 **Isaac Gym / Isaac Sim (Isaac Lab) / MuJoCo / Gazebo / PyBullet / ros2_control** 中的关节顺序并列打印出来。顺序全部一致就显示绿色，任何一个框架的顺序对不上就标红，并指出差在哪里。格式按根元素自动识别（`<robot>` 还是 `<mujoco>`），不用手动选。
+上传一个 **URDF 或 MuJoCo MJCF（.xml）**，把它在 **Isaac Gym / Isaac Sim (Isaac Lab) / MuJoCo / Genesis / Newton / Gazebo / PyBullet / ros2_control** 中的关节顺序并列打印出来。顺序全部一致就显示绿色，任何一个框架的顺序对不上就标红，并指出差在哪里。格式按根元素自动识别（`<robot>` 还是 `<mujoco>`），不用手动选。
 
 **在线使用：** <https://imchong.github.io/Robot_Joint_Order_Check_Tool/>
 
@@ -29,6 +29,8 @@ MJCF 不一样，它的 body 树把关节顺序写死了；但同一台机器人
 | Isaac Gym (Preview) | 运动学树**深度优先**（DFS），同层按文档顺序 |
 | Isaac Sim / Isaac Lab | 运动学树**广度优先**（BFS，PhysX stage parser） |
 | MuJoCo | body 树**深度优先**（DFS），同层按文档顺序 |
+| Genesis | 同 MuJoCo —— 结构解析直接交给 MuJoCo 的统一解析器；默认还会合并 fixed link、并在根部插入 `root_joint` |
+| Newton (Warp) | **深度优先**拓扑排序（`joint_ordering="dfs"`），同层按文档顺序；fixed 关节**占关节下标**，且最前面还有一个自带的基座关节 |
 | Gazebo (SDF) | **深度优先**（DFS），但**同层按关节名字母序**（sdformat 走 urdfdom 的 `child_links`）；只吃 URDF |
 | PyBullet | **深度优先**（DFS），同层按文档顺序；`getJointInfo` **包含 fixed 关节** |
 | ros2_control | 取决于配置，默认跟 URDF 文件顺序一致（见下）；只吃 URDF |
@@ -46,6 +48,11 @@ Isaac Sim / Isaac Lab (BFS): FL_hip, FR_hip,   RL_hip,   RR_hip, FL_thigh, FR_th
 Gazebo 的坑更隐蔽：它也是 DFS，但**同层子关节按关节名字母序**，所以只要某个 link 的多个子关节的书写顺序不等于字母序，Gazebo 就会和 MuJoCo / Isaac Gym / PyBullet 分道扬镳。内置示例「移动机械臂」就是这种情况 —— `base_link` 下先写轮子后写手臂，Gazebo 却把 `arm_shoulder_pan` 排到了两个 `drive_wheel_*` 前面。
 
 PyBullet 的 DFS 同层顺序和 Isaac Gym / MuJoCo 一样，但 **`getNumJoints` / `getJointInfo` 默认把 fixed 关节也算进去**（每个 child link 占一个下标，基座是 -1）。对照表默认只显示可动关节；要看与运行时下标一致的完整列表，勾选「显示 fixed 关节」。
+
+Genesis 和 Newton 这两个新引擎的**关节顺序本身**都跟 MuJoCo 一致（DFS，同层按文档顺序），真正容易踩的是它们各自往关节向量里塞的东西：
+
+- **Genesis** 的结构解析直接交给 MuJoCo 的统一解析器（`rigid_entity.py` 里 `l_infos = l_infos_mj`），所以顺序不用另算。但 `gs.morphs.URDF` 默认 `merge_fixed_links=True`，fixed 关节连同子 link 一起被合并掉（要保留用 `links_to_keep=[...]`）；而且默认 `fixed=False` 时它会自动在根部插入一个名为 `root_joint` 的 **free 关节**，哪怕 URDF 里根本没写浮动关节 —— `entity.joints[0]` 往往不是你文件里的第一个关节，后面所有 DOF 下标整体后移 6 位
+- **Newton** 默认 `collapse_fixed_joints=False`，fixed 关节保留成 0 自由度的 `JointType.FIXED`，**照样占一个关节下标**（这点像 PyBullet，勾选「显示 fixed 关节」才对得上）；此外它还会在最前面插一个文件里没有的基座关节（`fixed_base` 或 `floating_base`），所以 `model.joint_label[0]` 不是你的关节。Newton 也是唯一一个能直接切换遍历方式的：`add_urdf(..., joint_ordering="bfs")` 就变成 Isaac Sim 那一列的顺序
 
 ## MuJoCo MJCF 支持
 
@@ -110,6 +117,8 @@ Gazebo 和 ros2_control 不读 MJCF，载入 MJCF 时这两列显示为「不适
   > Physics simulation in Isaac Sim and Isaac Lab assumes a breadth-first ordering for the joints in a given kinematic tree. However, Isaac Gym Preview Release assumed a depth-first ordering for joints in the kinematic tree.
 - MuJoCo（URDF 导入）：[`src/xml/xml_urdf.cc`](https://github.com/google-deepmind/mujoco/blob/main/src/xml/xml_urdf.cc) —— 按文档顺序填充 `urChildren`，再从根 body 递归 `AddToTree()`；`fixed` 关节不生成 joint，`planar` 展开成 2 slide + 1 hinge，`<mimic>` 被忽略
 - MuJoCo（MJCF 本身）：[MJCF XML reference](https://mujoco.readthedocs.io/en/stable/XMLreference.html) —— body 树即 XML 嵌套，`<actuator>` 的顺序就是 `data.ctrl` 的顺序
+- Genesis：[`genesis/utils/urdf.py`](https://github.com/Genesis-Embodied-AI/Genesis/blob/main/genesis/utils/urdf.py) 的 `order_links_depth_first()` —— DFS 前序、同层保持原有相对顺序，注释里明写「the result matches MuJoCo's body ordering」；而 [`rigid_entity.py`](https://github.com/Genesis-Embodied-AI/Genesis/blob/main/genesis/engine/entities/rigid_entity/rigid_entity.py) 更进一步，直接用 MuJoCo 统一解析器的结果覆盖 link / joint（`l_infos = l_infos_mj`）。`merge_fixed_links=True`、`fixed=False`（自动补 `root_joint`）是 `gs.morphs.URDF` 的默认值
+- Newton：[`import_urdf.py`](https://github.com/newton-physics/newton/blob/main/newton/_src/utils/import_urdf.py) 的 `joint_ordering` 默认 `"dfs"`，交给 [`topology.py`](https://github.com/newton-physics/newton/blob/main/newton/_src/utils/topology.py) 的 `topological_sort(use_dfs=True)`，遍历子边时 `sorted(outgoing[node], key=joint_id)`，即同层按 `<joint>` 文档顺序；`collapse_fixed_joints` 默认 `False`，基座关节由 `_add_base_joint()` 排在最前
 - Gazebo：[sdformat `parser_urdf.cc`](https://github.com/gazebosim/sdformat/blob/sdf14/src/parser_urdf.cc) —— `CreateSDF()` 递归遍历 `_link->child_links`（DFS）；而 `child_links` 由 [urdfdom_headers `model.h`](https://github.com/ros/urdfdom_headers/blob/master/include/urdf_model/model.h) 的 `initTree()` 遍历 `std::map` 类型的 `joints_` 填充，因此同层子关节是**按关节名字母序**。sdformat 默认还会吸收 fixed 关节
 - PyBullet：[bullet3 `URDF2Bullet.cpp`](https://github.com/bulletphysics/bullet3/blob/master/examples/Importers/ImportURDFDemo/URDF2Bullet.cpp) —— 默认 `ConvertURDF2BulletInternal()` 从根递归（DFS）；同层顺序来自 [UrdfParser `initTreeAndRoot()`](https://github.com/bulletphysics/bullet3/blob/master/examples/Importers/ImportURDFDemo/UrdfParser.cpp) 按关节文档顺序填充的 `m_childLinks`。`getJointInfo` 包含 fixed 关节
 - ros2_control：[joint_state_broadcaster 文档](https://control.ros.org/rolling/doc/ros2_controllers/joint_state_broadcaster/doc/userdoc.html)
@@ -119,8 +128,9 @@ Gazebo 和 ros2_control 不读 MJCF，载入 MJCF 时这两列显示为「不适
 - **只接受展开后的 URDF**。检测到 `<xacro:*>` 或 `${}` 会提示先跑 `xacro robot.urdf.xacro > robot.urdf`
 - **MJCF 的 `<include>` 不会被跟进**（浏览器里读不到别的文件），结果只反映当前这一个文件；含 `<include>` 时会明确提示
 - MJCF 里驱动 tendon / site / body 的执行器不对应任何关节，但一样占 `ctrl` 槽位，所以「MuJoCo ctrl」列的序号在这种模型上会小于真实 `ctrl` 下标（同样会提示）
-- 结论是**按公开的导入规则静态推导**的，不运行任何仿真器。生产环境请始终以运行时打印的关节名列表为准：`robot.data.joint_names`（Isaac Lab）、`mj_id2name(m, mjOBJ_JOINT, i)`（MuJoCo）、`gym.get_asset_dof_names(asset)`（Isaac Gym）、`getJointInfo(body, i)[1]`（PyBullet）
-- 导入器的选项会改变结果（例如 Isaac 的 `merge_fixed_joints`、MuJoCo 的 `fusestatic`、Isaac Gym 的 `collapse_fixed_joints`、sdformat 的 `disableFixedJointLumping` / `preserveFixedJoint`、PyBullet 的 `URDF_MAINTAIN_LINK_ORDER` / `URDF_MERGE_FIXED_LINKS`），工具按各自的默认行为计算
+- 结论是**按公开的导入规则静态推导**的，不运行任何仿真器。生产环境请始终以运行时打印的关节名列表为准：`robot.data.joint_names`（Isaac Lab）、`mj_id2name(m, mjOBJ_JOINT, i)`（MuJoCo）、`gym.get_asset_dof_names(asset)`（Isaac Gym）、`getJointInfo(body, i)[1]`（PyBullet）、`[j.name for j in entity.joints]`（Genesis）、`model.joint_label`（Newton）
+- 导入器的选项会改变结果（例如 Isaac 的 `merge_fixed_joints`、MuJoCo 的 `fusestatic`、Isaac Gym 的 `collapse_fixed_joints`、sdformat 的 `disableFixedJointLumping` / `preserveFixedJoint`、PyBullet 的 `URDF_MAINTAIN_LINK_ORDER` / `URDF_MERGE_FIXED_LINKS`、Genesis 的 `merge_fixed_links` / `links_to_keep` / `fixed`、Newton 的 `collapse_fixed_joints` / `joint_ordering`），工具按各自的默认行为计算
+- **各框架自己合成的基座关节不会出现在表格里**：Genesis 默认补的 `root_joint`（free，6 DOF）和 Newton 一定会插在最前面的 `fixed_base` / `floating_base`，都不是文件里的关节，工具只列文件里有的。对这两列，运行时的关节下标要在表格序号上再加 1，DOF 下标另按各自基座的自由度平移
 - Gazebo 一列指的是 **URDF→SDF 转换后模型里的关节顺序**（`Model::GetJoints()` 走这个顺序）。`gazebo_ros_joint_state_publisher` 插件按你列的 `<joint_name>` 顺序发布，`gz_ros2_control` 走 `<ros2_control>` 标签，两者都与这一列无关
 - PyBullet 一列指的是默认 `loadURDF(flags=0)` 之后 `getJointInfo(i)` 的顺序。勾选「显示 fixed 关节」才与运行时下标一致；`setJointMotorControlArray` 如果自己过滤了 fixed，用的是可动关节子序列
 - 多自由度关节（`floating` / `planar`）在各框架展开成的 DOF 数量和排列不同，关节级顺序一致**不代表** DOF 级一致，工具会单独警告
@@ -161,7 +171,7 @@ assets/js/orderings.js     各框架的顺序规则与一致性分析
 assets/js/app.js           界面逻辑
 samples/                   示例文件（合成的由 samples.js 导出，真实机型原样收录）
 tools/export-samples.mjs   重新生成合成示例，并检查收录的文件还在
-tools/test-orderings.mjs   各框架顺序规则的无浏览器检查（含 PyBullet 列）
+tools/test-orderings.mjs   各框架顺序规则的无浏览器检查（含 Genesis / Newton / PyBullet 列）
 ```
 
 改过 `assets/js/samples.js` 之后跑 `node tools/export-samples.mjs` 同步示例文件，CI 会检查两者是否一致。收录的第三方模型不会被这个脚本改写，只检查存在性。改过 `assets/js/orderings.js` 之后跑 `node tools/test-orderings.mjs`。
@@ -170,9 +180,11 @@ tools/test-orderings.mjs   各框架顺序规则的无浏览器检查（含 PyBu
 
 ## English
 
-Upload a **URDF or a MuJoCo MJCF (`.xml`)** — the format is detected from the root element — and this page prints the robot's joint order **side by side** as seen by Isaac Gym, Isaac Sim / Isaac Lab, MuJoCo, Gazebo, PyBullet and ros2_control. Green when every framework agrees, red on the exact cells that don't — plus a generated index-remap array you can paste into your code.
+Upload a **URDF or a MuJoCo MJCF (`.xml`)** — the format is detected from the root element — and this page prints the robot's joint order **side by side** as seen by Isaac Gym, Isaac Sim / Isaac Lab, MuJoCo, Genesis, Newton, Gazebo, PyBullet and ros2_control. Green when every framework agrees, red on the exact cells that don't — plus a generated index-remap array you can paste into your code.
 
 URDF itself defines no joint order, so each downstream tool imposes its own: MuJoCo and Isaac Gym walk the kinematic tree depth-first, Isaac Sim / Isaac Lab walk it breadth-first, Gazebo also walks it depth-first but sorts siblings alphabetically (sdformat recurses over urdfdom's `child_links`, filled from a `std::map`), PyBullet is the same DFS as Isaac Gym but **keeps fixed joints in `getJointInfo`**, and ros2_control follows the URDF or the `<ros2_control>` tag depending on configuration. That mismatch is what silently scrambles a joint vector when you move a policy between them.
+
+**Genesis** and **Newton** both land on the same depth-first order as MuJoCo — Genesis because it hands the kinematic structure to MuJoCo's unified parser outright, Newton because `parse_urdf(joint_ordering="dfs")` sorts each node's children by joint id. What differs is what they put *around* your joints: Genesis merges fixed links away by default (`merge_fixed_links=True`) and prepends a synthetic free `root_joint` unless you pass `fixed=True`, while Newton keeps fixed joints as 0-DOF entries that still consume a joint index and always prepends a base joint of its own, so `model.joint_label[0]` is never your first joint. Newton is also the one importer that lets you pick: `joint_ordering="bfs"` reproduces the Isaac Sim column.
 
 **MJCF** is a different question: the XML nesting *is* the body tree, so the file order is the joint id order MuJoCo compiles to, and the interesting mismatch moves elsewhere — `data.ctrl` follows the `<actuator>` block, a separate vector, which gets its own column. The bundled Unitree G1 model is a live example: its official URDF and MJCF agree on joint order, but the MJCF's last four right-hand actuators (indices 39–42) are written `index_0, index_1, middle_0, middle_1` while the joints run `middle_0, middle_1, index_0, index_1`. Bodies with no joint (welds), `<default>` class inheritance, free/ball joints and `<equality>` constraints are all handled; `<include>` is not followed and is reported instead.
 
