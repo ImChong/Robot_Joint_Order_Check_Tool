@@ -39,6 +39,43 @@
 
 <main class="wrap">
 
+  <!-- ─────────── Intro ─────────── -->
+  <section class="intro" id="intro">
+    <h1 class="intro-title" data-i18n="intro.title">同一个模型，六个框架，未必是同一个关节顺序</h1>
+    <p class="intro-lead" data-i18n-html="intro.lead">URDF 只是一堆 link 和 joint 的集合，<b>它本身不定义关节顺序</b>。每个仿真器和框架都按自己的规则把这些关节排成一个向量：Isaac Gym 沿运动学树深度优先，Isaac Sim / Isaac Lab 广度优先，Gazebo 也是深度优先、但同层子关节按名字的字母序，PyBullet 则把 fixed 关节一起编进下标。</p>
+
+    <div class="intro-demo">
+      <span class="intro-demo-label" data-i18n="intro.demoLabel">同一个四足 URDF，两种导入顺序</span>
+      <pre><code><span class="d-key">Isaac Gym / MuJoCo    (DFS)</span> : FL_hip, <span class="d-hi">FL_thigh</span>, <span class="d-hi">FL_calf</span>, FR_hip, FR_thigh, …
+<span class="d-key">Isaac Sim / Isaac Lab (BFS)</span> : FL_hip, <span class="d-hi">FR_hip</span>,   <span class="d-hi">RL_hip</span>,  RR_hip, FL_thigh, …</code></pre>
+    </div>
+
+    <p class="intro-note" data-i18n-html="intro.note">于是把 Isaac Gym 里训好的策略搬到 Isaac Lab 或实机上，关节向量会<b>静默错位</b>：不报错、不崩溃，机器人直接抽搐。MJCF 也躲不掉 —— body 树虽然定死了关节顺序，但 <code>&lt;actuator&gt;</code>（也就是 <code>data.ctrl</code>）的顺序是另一个独立的向量。</p>
+
+    <p class="intro-note" data-i18n="intro.does">这个工具就是在写代码之前把这件事看清楚：载入一个 URDF 或 MJCF（按根元素自动识别），把它在各框架里的关节顺序并列排开 —— 全部一致显示绿色，对不上就精确标红到是哪一格。</p>
+
+    <ul class="intro-points">
+      <li class="intro-point">
+        <h3 data-i18n="intro.p1.title">六个框架并列对照</h3>
+        <p data-i18n="intro.p1.body">Isaac Gym、Isaac Sim / Isaac Lab、MuJoCo、Gazebo、PyBullet、ros2_control 一次算完；载入 MJCF 时还会单列 &lt;actuator&gt;（data.ctrl）的顺序。</p>
+      </li>
+      <li class="intro-point">
+        <h3 data-i18n="intro.p2.title">直接给出对齐用的代码</h3>
+        <p data-i18n="intro.p2.body">选好源框架和目标框架，生成可粘贴的 Python / C++ / JSON 索引数组，把手上的关节向量重排成目标顺序；也可导出 CSV 与完整 JSON。</p>
+      </li>
+      <li class="intro-point">
+        <h3 data-i18n="intro.p3.title">自动提示常见的坑</h3>
+        <p data-i18n="intro.p3.body">未展开的 xacro、mimic 关节、浮动基座、多自由度关节、MJCF 的 &lt;include&gt; 与重名元素，解析时都会单独提示。</p>
+      </li>
+      <li class="intro-point">
+        <h3 data-i18n="intro.p4.title">本地解析，不上传</h3>
+        <p data-i18n="intro.p4.body">纯静态页面，文件只在你的浏览器里解析。结论按各导入器公开的默认规则静态推导，上线前请以运行时打印的关节名为准。</p>
+      </li>
+    </ul>
+
+    <p class="intro-links"><a href="#rulesCard" data-i18n="intro.linkRules">看看各框架的顺序规则和它们的出处 ↓</a></p>
+  </section>
+
   <!-- ─────────── Input ─────────── -->
   <section class="card" id="inputCard">
     <h2 class="card-title" data-i18n="input.title">1. 载入 URDF / MJCF</h2>
