@@ -8,7 +8,7 @@
       'app.subtitle': '比较 URDF / MJCF 在各仿真器 / 框架中的关节顺序',
       'ui.theme': '切换主题',
 
-      'intro.title': '同一个模型，六个框架，未必是同一个关节顺序',
+      'intro.title': '同一个模型，不同框架，未必是同一个关节顺序',
       'intro.lead': 'URDF 本身<b>不定义关节顺序</b>，每个框架按自己的规则排：Isaac Gym 深度优先，Isaac Sim / Isaac Lab 广度优先，Gazebo 同层还要按关节名字母序，PyBullet 连 fixed 关节一起编号。',
       'intro.demoLabel': '同一个四足 URDF，两种导入顺序',
       'intro.note': '把 Isaac Gym 训好的策略搬到 Isaac Lab 或实机上，关节向量就会<b>静默错位</b> —— 不报错，机器人直接抽搐。MJCF 也躲不掉：body 树定死了关节顺序，但 <code>&lt;actuator&gt;</code>（<code>data.ctrl</code>）是另一个向量。',
@@ -117,7 +117,7 @@
       'app.subtitle': 'Compare URDF / MJCF joint ordering across simulators and frameworks',
       'ui.theme': 'Toggle theme',
 
-      'intro.title': 'One model, six frameworks — not necessarily one joint order',
+      'intro.title': 'One model, different frameworks — not necessarily one joint order',
       'intro.lead': 'A URDF <b>defines no joint order of its own</b> — every framework imposes one by its own rule: Isaac Gym depth-first, Isaac Sim / Isaac Lab breadth-first, Gazebo depth-first but with siblings sorted alphabetically, PyBullet numbering fixed joints along with the rest.',
       'intro.demoLabel': 'the same quadruped URDF, two import orders',
       'intro.note': 'Move a policy trained in Isaac Gym to Isaac Lab or to real hardware and the joint vector <b>silently mismatches</b> — nothing errors, the robot just convulses. MJCF is not exempt: its body tree pins the joint order down, but <code>&lt;actuator&gt;</code> (<code>data.ctrl</code>) is a separate vector.',
