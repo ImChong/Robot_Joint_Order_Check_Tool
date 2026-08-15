@@ -223,18 +223,6 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .intro-demo .d-key { color: var(--text-faint); }
 .intro-demo .d-hi { color: var(--bad); font-weight: 650; }
 
-.intro-points {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
-  gap: 10px; margin: 0 0 13px; padding: 0; list-style: none;
-}
-.intro-point {
-  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
-  box-shadow: var(--shadow-sm); padding: 12px 14px;
-  transition: background var(--transition), border-color var(--transition);
-}
-.intro-point h3 { margin: 0 0 4px; font-size: 13px; font-weight: 650; }
-.intro-point p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-dim); }
-
 .intro-links { margin: 0; font-size: 13px; }
 
 /* ── Dropzone ── */
