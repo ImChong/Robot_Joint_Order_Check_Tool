@@ -65,8 +65,9 @@
       'tree.jointsSub': '关节列表',
 
       'rules.title': '各框架的顺序规则',
-      'rules.hint': '这些规则决定了上面的计算结果。点击展开查看依据、注意事项和运行时核对命令。',
+      'rules.hint': '这些规则决定了上面的计算结果。点击展开查看依据、注意事项、运行时核对命令，以及各框架根节点四元数的获取方式与分量顺序。',
       'rules.verify': '运行时核对',
+      'rules.quat': '根节点四元数',
 
       'verdict.ok.title': '顺序一致',
       'verdict.ok.desc': '在共有的 {n} 个关节上，所有被比较的框架顺序完全相同。',
@@ -174,8 +175,9 @@
       'tree.jointsSub': 'Joints',
 
       'rules.title': 'Ordering rule for each framework',
-      'rules.hint': 'These rules drive the results above. Expand for the reasoning, caveats and the command to verify at runtime.',
+      'rules.hint': 'These rules drive the results above. Expand for the reasoning, caveats, the command to verify at runtime, and how each framework hands you the root quaternion — w, x, y, z or x, y, z, w.',
       'rules.verify': 'Verify at runtime',
+      'rules.quat': 'Root quaternion',
 
       'verdict.ok.title': 'Orders are consistent',
       'verdict.ok.desc': 'All compared frameworks agree on the order of the {n} shared joints.',

@@ -794,6 +794,24 @@
   }
 
   /* ── Rules reference ───────────────────────────────────────────── */
+
+  /* The component order is the one thing worth seeing without expanding all
+     ten cards, so it doubles as a chip on the summary line. */
+  function quatChip(doc) {
+    if (!doc.quat) return '';
+    return '<span class="quat-chip quat-' + doc.quat.order + '">' +
+           esc(Orderings.quatChipOf(doc, lang())) + '</span>';
+  }
+
+  function quatBlock(doc) {
+    var q = doc.quat;
+    if (!q) return '';
+    return '<div class="rule-verify rule-quat">' +
+           '<span class="rule-verify-label">' + t('rules.quat') + quatChip(doc) + '</span>' +
+           '<pre><code>' + esc(q.code) + '</code></pre>' +
+           '<div class="rule-quat-note">' + (q.note[lang()] || q.note.en) + '</div></div>';
+  }
+
   function renderRules() {
     var host = $('#rulesList');
     // Driven by FRAMEWORKS so the rule cards always match the table's column order.
@@ -805,8 +823,10 @@
           '<pre><code>' + esc(doc.verify) + '</code></pre></div>'
         : '';
       return '<details class="rule"><summary>' + esc(Orderings.labelOf(fw, lang())) +
-             ' <span class="rule-key">' + esc(Orderings.ruleOf(fw, lang())) + '</span></summary>' +
-             '<div class="rule-body">' + (doc.body[lang()] || doc.body.en) + verify + '</div></details>';
+             ' <span class="rule-key">' + esc(Orderings.ruleOf(fw, lang())) + '</span>' +
+             quatChip(doc) + '</summary>' +
+             '<div class="rule-body">' + (doc.body[lang()] || doc.body.en) +
+             quatBlock(doc) + verify + '</div></details>';
     }).join('');
   }
 
