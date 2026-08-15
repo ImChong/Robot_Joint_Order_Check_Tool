@@ -50,11 +50,13 @@
   /* ── Framework definitions ─────────────────────────────────────────
      compute(ctx) -> array of joint objects, or null when not applicable.
      `holdsFixed` marks frameworks whose joint list can contain fixed joints
-     at all; Isaac / MuJoCo / Gazebo create no joint for a URDF fixed joint,
-     while PyBullet's getJointInfo keeps every child link (fixed included).
+     at all; Isaac / MuJoCo / Gazebo / Genesis create no joint for a URDF fixed
+     joint, while PyBullet's getJointInfo and Newton's joint array keep every
+     child link (fixed included).
      `holdsFreeBase` marks the ones that expose a floating base as a joint —
-     MuJoCo does (a free joint, first in the vector), Isaac / Gazebo /
-     PyBullet / ros2_control treat it as a free-floating root instead.
+     MuJoCo does (a free joint, first in the vector), and so do Genesis and
+     Newton, while Isaac / Gazebo / PyBullet / ros2_control treat it as a
+     free-floating root instead.
      `labelByFormat` / `ruleByFormat` override the generic text once the input
      format is known, so the same column can read "URDF" or "MJCF".        */
   var FRAMEWORKS = [
@@ -99,6 +101,39 @@
         mjcf: { zh: 'body 树深度优先（= 文件顺序）', en: 'depth-first over body tree (= file order)' }
       },
       holdsFixed: false,
+      holdsFreeBase: true,
+      siblingOrder: 'document',
+      compute: function (ctx) { return dfsOrder(ctx.tree, ctx.siblingOrder); }
+    },
+    {
+      id: 'genesis',
+      label: { zh: 'Genesis', en: 'Genesis' },
+      // Genesis parses a URDF with its own urdfpy fork for geometry, then lets
+      // MuJoCo's unified parser overwrite the kinematic structure outright
+      // (`l_infos = l_infos_mj` in rigid_entity.py), and MJCF goes straight
+      // through mujoco. Its own fallback, order_links_depth_first(), is the
+      // same DFS pre-order with siblings in their original relative order —
+      // the comment there says it "matches MuJoCo's body ordering".
+      rule: { zh: 'body 树深度优先（同 MuJoCo）', en: 'depth-first over body tree (same as MuJoCo)' },
+      // URDF: gs.morphs.URDF defaults to merge_fixed_links=True, so a fixed
+      // joint loses its child link entirely. MJCF: a body with no <joint> still
+      // becomes a 0-DOF FIXED joint, named after the body.
+      holdsFixed: function (ctx) { return ctx.model.format === 'mjcf'; },
+      holdsFreeBase: true,
+      siblingOrder: 'document',
+      compute: function (ctx) { return dfsOrder(ctx.tree, ctx.siblingOrder); }
+    },
+    {
+      id: 'newton',
+      label: { zh: 'Newton (Warp)', en: 'Newton (Warp)' },
+      // parse_urdf() defaults to joint_ordering="dfs", handing the (parent,
+      // child) edges to topological_sort(use_dfs=True), which walks children as
+      // `sorted(outgoing[node], key=joint_id)` — document order, like MuJoCo.
+      // collapse_fixed_joints defaults to False, so a URDF fixed joint stays in
+      // the array as a 0-DOF JointType.FIXED, and a jointless MJCF body gets a
+      // fixed joint of its own too. Both occupy a joint index without a DOF.
+      rule: { zh: 'DFS 拓扑排序（含 fixed 关节）', en: 'depth-first topological sort, fixed joints included' },
+      holdsFixed: true,
       holdsFreeBase: true,
       siblingOrder: 'document',
       compute: function (ctx) { return dfsOrder(ctx.tree, ctx.siblingOrder); }
@@ -275,10 +310,12 @@
         seq = null;
       }
       // Most simulators create no joint at all for a URDF fixed joint, so it
-      // can never appear in those columns. PyBullet (and the URDF / ros2_control
-      // lists) do keep them; the toggle only reveals fixed joints in columns
-      // whose joint list can actually contain them.
-      if (seq && (!showFixed || !fw.holdsFixed)) {
+      // can never appear in those columns. PyBullet / Newton (and the URDF /
+      // ros2_control lists) do keep them; the toggle only reveals fixed joints
+      // in columns whose joint list can actually contain them — which for
+      // Genesis depends on whether the input is a URDF or an MJCF.
+      var holdsFixed = typeof fw.holdsFixed === 'function' ? fw.holdsFixed(ctx) : fw.holdsFixed;
+      if (seq && (!showFixed || !holdsFixed)) {
         seq = seq.filter(function (j) { return URDF.isMovable(j); });
       }
       // Same idea for the floating base: it is a joint in MuJoCo and a free
@@ -305,7 +342,7 @@
         dofStart: dofStart,
         totalDof: acc,
         naReasonKey: typeof fw.naReason === 'function' ? fw.naReason(ctx) : (fw.naReason || null),
-        holdsFixed: fw.holdsFixed
+        holdsFixed: holdsFixed
       };
     });
 
@@ -384,6 +421,22 @@
       body: {
         zh: '<p>官方文档原文：“Physics simulation in Isaac Sim and Isaac Lab assumes a <b>breadth-first</b> ordering for the joints in a given kinematic tree. However, Isaac Gym Preview Release assumed a <b>depth-first</b> ordering.” 也就是 PhysX stage parser 按<b>广度优先</b>（逐层）排列关节。</p><p>同一个四足机器人在这里是 <code>FL_hip, FR_hip, RL_hip, RR_hip, FL_thigh, …</code> —— 先排完所有髋关节，再排所有大腿。</p><p><b>注意：</b>运行时用 <code>robot.data.joint_names</code> 核对，用 <code>ArticulationCfg</code> 的 <code>joint_names_expr</code> 或 <code>find_joints()</code> 做重映射，不要硬编码索引。</p><p>来源：<a href="https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_isaacgymenvs.html" target="_blank" rel="noopener">Isaac Lab — Migrating from IsaacGymEnvs</a></p>',
         en: '<p>Straight from the docs: “Physics simulation in Isaac Sim and Isaac Lab assumes a <b>breadth-first</b> ordering for the joints in a given kinematic tree. However, Isaac Gym Preview Release assumed a <b>depth-first</b> ordering.” The PhysX stage parser walks the tree level by level.</p><p>The same quadruped comes out as <code>FL_hip, FR_hip, RL_hip, RR_hip, FL_thigh, …</code> — all hips first, then all thighs.</p><p><b>Note:</b> verify at runtime with <code>robot.data.joint_names</code>, and remap with <code>joint_names_expr</code> / <code>find_joints()</code> instead of hard-coding indices.</p><p>Source: <a href="https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_isaacgymenvs.html" target="_blank" rel="noopener">Isaac Lab — Migrating from IsaacGymEnvs</a></p>'
+      }
+    },
+    {
+      id: 'genesis',
+      verify: 'import genesis as gs\ngs.init()\nscene = gs.Scene()\nrobot = scene.add_entity(gs.morphs.URDF(file="robot.urdf"))   # or gs.morphs.MJCF(file="robot.xml")\nscene.build()\nprint([j.name for j in robot.joints])\nprint([(j.name, j.dofs_idx_local) for j in robot.joints])',
+      body: {
+        zh: '<p>Genesis 既读 URDF 也读 MJCF，两边的关节顺序都跟着 MuJoCo 走。</p><p><b>URDF：</b><code>parse_urdf()</code> 先用自带的 urdfpy 分支读几何和 <code>&lt;equality&gt;</code>，随后 <code>rigid_entity.py</code> 用 <b>MuJoCo 的统一解析器</b>把 link / joint 结构整个覆盖掉（<code>l_infos = l_infos_mj</code>），所以关节顺序就是 MuJoCo 的 URDF 导入顺序。就算退回它自己的 legacy 路径，<code>order_links_depth_first()</code> 也是深度优先前序、同层保持原有相对顺序，源码注释里明写「the result matches MuJoCo’s body ordering」。<b>MJCF</b> 则交给 mujoco 编译，再按 <code>body_parentid</code> 读回来，同样是 body 树 DFS。</p><p><b>注意：</b><code>gs.morphs.URDF</code> 默认 <code>merge_fixed_links=True</code> —— fixed 关节连同子 link 一起被合并进父 link，比其它导入器「不生成关节」更进一步（link 本身也没了）。要留住某个 link 用 <code>links_to_keep=[...]</code>，或整体关掉 <code>merge_fixed_links=False</code>；此时被保留的 link 会得到一个 0 自由度的 <code>FIXED</code> 关节，占一个关节下标。</p><p><b>注意：</b><code>fixed</code> 默认是 <code>False</code>，Genesis 会自动在根部插入一个名叫 <code>root_joint</code> 的 <b>free 关节</b>（7 qpos / 6 DOF），哪怕 URDF 里根本没写浮动关节。所以 <code>entity.joints[0]</code> 常常是个文件里不存在的关节，后面每个关节的 DOF 下标整体后移 6 位。</p><p><b>注意：</b><code>entity.joints</code> 里混着 0 自由度的 <code>FIXED</code> 关节（MJCF 中没有 <code>&lt;joint&gt;</code> 的 body 会得到一个<b>以 body 名命名</b>的 fixed 关节），所以关节序号不等于 DOF 序号 —— 要下标就读 <code>joint.dofs_idx_local</code>，别拿关节序号去索引 <code>qpos</code>。</p><p>来源：<a href="https://github.com/Genesis-Embodied-AI/Genesis/blob/main/genesis/utils/urdf.py" target="_blank" rel="noopener">Genesis <code>utils/urdf.py</code></a>、<a href="https://github.com/Genesis-Embodied-AI/Genesis/blob/main/genesis/engine/entities/rigid_entity/rigid_entity.py" target="_blank" rel="noopener">Genesis <code>rigid_entity.py</code></a></p>',
+        en: '<p>Genesis reads both URDF and MJCF, and both follow MuJoCo.</p><p><b>URDF:</b> <code>parse_urdf()</code> reads geometry and <code>&lt;equality&gt;</code> with its own urdfpy fork, then <code>rigid_entity.py</code> overwrites the whole link / joint structure with <b>MuJoCo’s unified parser</b> (<code>l_infos = l_infos_mj</code>) — so the joint order <i>is</i> MuJoCo’s URDF import order. Even on the legacy fallback path, <code>order_links_depth_first()</code> is a depth-first pre-order that keeps siblings in their original relative order, and its comment states outright that "the result matches MuJoCo’s body ordering". <b>MJCF</b> is compiled by mujoco and read back through <code>body_parentid</code> — the same body-tree DFS.</p><p><b>Note:</b> <code>gs.morphs.URDF</code> defaults to <code>merge_fixed_links=True</code>, which merges a fixed joint’s child link into its parent — one step beyond the other importers, which merely create no joint. Keep a link with <code>links_to_keep=[...]</code>, or switch the whole thing off with <code>merge_fixed_links=False</code>; a link kept that way carries a 0-DOF <code>FIXED</code> joint that does occupy a joint index.</p><p><b>Note:</b> <code>fixed</code> defaults to <code>False</code>, so Genesis inserts a <b>free joint named <code>root_joint</code></b> (7 qpos / 6 DOF) at the root even when the URDF declares no floating joint. <code>entity.joints[0]</code> is therefore usually a joint that is not in your file, and every DOF index behind it is shifted by 6.</p><p><b>Note:</b> <code>entity.joints</code> also carries 0-DOF <code>FIXED</code> joints (a jointless MJCF body yields one <b>named after the body</b>), so a joint index is not a DOF index — read <code>joint.dofs_idx_local</code> instead of indexing <code>qpos</code> by joint number.</p><p>Sources: <a href="https://github.com/Genesis-Embodied-AI/Genesis/blob/main/genesis/utils/urdf.py" target="_blank" rel="noopener">Genesis <code>utils/urdf.py</code></a>, <a href="https://github.com/Genesis-Embodied-AI/Genesis/blob/main/genesis/engine/entities/rigid_entity/rigid_entity.py" target="_blank" rel="noopener">Genesis <code>rigid_entity.py</code></a></p>'
+      }
+    },
+    {
+      id: 'newton',
+      verify: 'import newton\nbuilder = newton.ModelBuilder()\nbuilder.add_urdf("robot.urdf")        # or builder.add_mjcf("robot.xml")\nmodel = builder.finalize()\nprint(model.joint_label)             # joint_label[0] is Newton\'s own base joint',
+      body: {
+        zh: '<p>Newton（NVIDIA / Google DeepMind / Disney Research，构建在 NVIDIA Warp 之上）用 <code>ModelBuilder.add_urdf()</code> / <code>add_mjcf()</code> 导入模型。</p><p><b>URDF：</b><code>parse_urdf()</code> 的 <code>joint_ordering</code> 默认是 <code>"dfs"</code>，它把所有 (parent, child) 边交给 <code>topological_sort(use_dfs=True)</code>；递归子节点时取的是 <code>sorted(outgoing[node], key=joint_id)</code>，也就是<b>同层按 <code>&lt;joint&gt;</code> 的文档顺序</b> —— 和 MuJoCo / Isaac Gym / PyBullet 的 DFS 一致，不是 Gazebo 的字母序。改成 <code>joint_ordering="bfs"</code> 会走 Kahn 广度优先（≈ Isaac Sim 那一列），传 <code>None</code> 则原样保留文件顺序。<b>MJCF</b> 由 <code>parse_body()</code> 递归 body 树，同样是 DFS。</p><p><b>和 MuJoCo / Genesis 的关键差别：</b><code>collapse_fixed_joints</code> 默认是 <code>False</code>，URDF 的 fixed 关节会保留成 0 自由度的 <code>JointType.FIXED</code>，<b>照样占一个关节下标</b>；MJCF 里没有 <code>&lt;joint&gt;</code> 的 body 也会拿到一个 fixed 关节（标签形如 <code>&lt;body&gt;/&lt;body&gt;_joint</code>，本工具这一列用 body 名显示）。所以勾选「显示 fixed 关节」才对得上运行时的 <code>model.joint_label</code>。</p><p><b>注意：</b>Newton 还会在这些关节<b>前面</b>插一个文件里没有的基座关节 —— URDF 默认 <code>floating=None</code> 给 <code>fixed_base</code>（0 DOF），<code>floating=True</code> 给 <code>floating_base</code>（7 qpos / 6 DOF）。所以 <code>model.joint_label[0]</code> 是这个基座关节，文件里的关节整体后移一位。</p><p><b>注意：</b>同一个 MJCF body 上挂多个 <code>&lt;joint&gt;</code> 时，Newton 会把它们合并成<b>一个</b> D6 关节（自由度仍按书写顺序排开，但关节个数对不上 MuJoCo 的 <code>njnt</code>）。模型有多个根时，遍历起点按根 link 名<b>字母序</b>（<code>roots = sorted(roots)</code>），而本工具按文档顺序。</p><p>来源：<a href="https://github.com/newton-physics/newton/blob/main/newton/_src/utils/import_urdf.py" target="_blank" rel="noopener">newton <code>import_urdf.py</code></a>、<a href="https://github.com/newton-physics/newton/blob/main/newton/_src/utils/topology.py" target="_blank" rel="noopener">newton <code>topology.py</code></a></p>',
+        en: '<p>Newton (NVIDIA / Google DeepMind / Disney Research, built on NVIDIA Warp) imports models through <code>ModelBuilder.add_urdf()</code> / <code>add_mjcf()</code>.</p><p><b>URDF:</b> <code>parse_urdf()</code> defaults to <code>joint_ordering="dfs"</code> and hands every (parent, child) edge to <code>topological_sort(use_dfs=True)</code>, which recurses over <code>sorted(outgoing[node], key=joint_id)</code> — i.e. <b>siblings in <code>&lt;joint&gt;</code> document order</b>, matching the MuJoCo / Isaac Gym / PyBullet depth-first walk rather than Gazebo’s alphabetical one. Pass <code>joint_ordering="bfs"</code> for Kahn’s breadth-first order (≈ the Isaac Sim column), or <code>None</code> to keep the file order verbatim. <b>MJCF</b> is walked recursively by <code>parse_body()</code> — the same DFS.</p><p><b>The difference versus MuJoCo / Genesis:</b> <code>collapse_fixed_joints</code> defaults to <code>False</code>, so a URDF fixed joint survives as a 0-DOF <code>JointType.FIXED</code> and <b>still occupies a joint index</b>; a jointless MJCF body likewise gets a fixed joint of its own (labelled <code>&lt;body&gt;/&lt;body&gt;_joint</code>, shown here under the body name). Tick “show fixed joints” to get the list that matches <code>model.joint_label</code> at runtime.</p><p><b>Note:</b> Newton also prepends a base joint that exists nowhere in your file — <code>fixed_base</code> (0 DOF) for the URDF default <code>floating=None</code>, or <code>floating_base</code> (7 qpos / 6 DOF) for <code>floating=True</code>. <code>model.joint_label[0]</code> is that base joint, and every joint from the file shifts one slot later.</p><p><b>Note:</b> several <code>&lt;joint&gt;</code> elements on one MJCF body are merged into <b>a single</b> D6 joint (the DOFs stay in written order, but the joint count no longer matches MuJoCo’s <code>njnt</code>). With multiple roots the traversal starts in <b>alphabetical</b> root-link order (<code>roots = sorted(roots)</code>), where this tool uses document order.</p><p>Sources: <a href="https://github.com/newton-physics/newton/blob/main/newton/_src/utils/import_urdf.py" target="_blank" rel="noopener">newton <code>import_urdf.py</code></a>, <a href="https://github.com/newton-physics/newton/blob/main/newton/_src/utils/topology.py" target="_blank" rel="noopener">newton <code>topology.py</code></a></p>'
       }
     },
     {
