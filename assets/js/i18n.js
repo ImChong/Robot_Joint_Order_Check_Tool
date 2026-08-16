@@ -62,6 +62,8 @@
 
       'tree.title': '5. 运动学树与关节详情',
       'tree.sub': '运动学树',
+      'tree.expand': '展开全部 ▾',
+      'tree.collapse': '收起 ▴',
       'tree.jointsSub': '关节列表',
 
       'rules.title': '各框架的顺序规则',
@@ -172,6 +174,8 @@
 
       'tree.title': '5. Kinematic tree & joint details',
       'tree.sub': 'Kinematic tree',
+      'tree.expand': 'Expand all ▾',
+      'tree.collapse': 'Collapse ▴',
       'tree.jointsSub': 'Joints',
 
       'rules.title': 'Ordering rule for each framework',

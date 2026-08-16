@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>机器人关节顺序检查工具 | Robot Joint Order Check Tool</title>
+<title>Robot Joint Order Check Tool | 机器人关节顺序检查工具</title>
 <meta name="description" content="上传 URDF 或 MuJoCo MJCF，并列比较该机器人在 Isaac Gym、Isaac Sim/Lab、MuJoCo、Genesis、Newton、Gazebo、PyBullet、ros2_control 中的关节顺序，一键发现顺序不一致。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6df6'/%3E%3Cg fill='%23fff'%3E%3Ccircle cx='9' cy='9' r='3.2'/%3E%3Ccircle cx='23' cy='16' r='3.2'/%3E%3Ccircle cx='9' cy='23' r='3.2'/%3E%3Cpath d='M9 9 L23 16 L9 23' stroke='%23fff' stroke-width='2.2' fill='none' stroke-linejoin='round'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/css/style.css">
@@ -23,7 +23,7 @@
         </g>
       </svg>
       <span class="site-title-text">
-        <strong data-i18n="app.title">机器人关节顺序检查工具</strong>
+        <strong>Robot Joint Order Check Tool<span class="site-title-zh"> | 机器人关节顺序检查工具</span></strong>
         <small data-i18n="app.subtitle">比较 URDF / MJCF 在各仿真器 / 框架中的关节顺序</small>
       </span>
     </a>
@@ -170,7 +170,10 @@
       <h2 class="card-title" data-i18n="tree.title">5. 运动学树与关节详情</h2>
       <div class="split">
         <div>
-          <h3 class="sub" data-i18n="tree.sub">运动学树</h3>
+          <div class="sub-head">
+            <h3 class="sub" data-i18n="tree.sub">运动学树</h3>
+            <button type="button" class="btn btn-link" id="treeExpand" data-i18n="tree.expand" hidden>展开全部 ▾</button>
+          </div>
           <pre id="treeOut" class="tree"></pre>
         </div>
         <div>
