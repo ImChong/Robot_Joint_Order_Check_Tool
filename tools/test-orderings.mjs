@@ -282,6 +282,61 @@ eq(namesOf(col(mjcfMovable, 'genesis')), namesOf(col(mjcfMovable, 'mujoco')),
 eq(namesOf(col(mjcfMovable, 'newton')), namesOf(col(mjcfMovable, 'mujoco')),
   'MJCF: Newton matches it too once the welds are hidden');
 
+/* Unitree G1 29-DOF body (ParkourFormer / Instinct): three chains off pelvis
+   (left leg, right leg, waist→torso→arms). DFS finishes a whole leg before
+   the next sibling; BFS interleaves hips / waist / shoulders by depth. */
+function g1Body29() {
+  const chain = (names, parent) => {
+    const joints = [];
+    names.forEach((name) => {
+      const child = name.replace(/_joint$/, '_link');
+      joints.push(J(name, 'revolute', parent, child));
+      parent = child;
+    });
+    return joints;
+  };
+  const leftLeg = ['left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint',
+    'left_knee_joint', 'left_ankle_pitch_joint', 'left_ankle_roll_joint'];
+  const rightLeg = ['right_hip_pitch_joint', 'right_hip_roll_joint', 'right_hip_yaw_joint',
+    'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint'];
+  const waist = ['waist_yaw_joint', 'waist_roll_joint', 'waist_pitch_joint'];
+  const leftArm = ['left_shoulder_pitch_joint', 'left_shoulder_roll_joint', 'left_shoulder_yaw_joint',
+    'left_elbow_joint', 'left_wrist_roll_joint', 'left_wrist_pitch_joint', 'left_wrist_yaw_joint'];
+  const rightArm = ['right_shoulder_pitch_joint', 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint',
+    'right_elbow_joint', 'right_wrist_roll_joint', 'right_wrist_pitch_joint', 'right_wrist_yaw_joint'];
+  const waistJoints = chain(waist, 'pelvis');
+  const torso = 'waist_pitch_link';
+  return modelFromJoints([].concat(
+    chain(leftLeg, 'pelvis'),
+    chain(rightLeg, 'pelvis'),
+    waistJoints,
+    chain(leftArm, torso),
+    chain(rightArm, torso)
+  ));
+}
+
+const g1 = run(g1Body29(), { showFixed: false });
+eq(namesOf(col(g1, 'isaacgym')), [
+  'left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint',
+  'left_knee_joint', 'left_ankle_pitch_joint', 'left_ankle_roll_joint',
+  'right_hip_pitch_joint', 'right_hip_roll_joint', 'right_hip_yaw_joint',
+  'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint',
+  'waist_yaw_joint', 'waist_roll_joint', 'waist_pitch_joint',
+  'left_shoulder_pitch_joint', 'left_shoulder_roll_joint', 'left_shoulder_yaw_joint',
+  'left_elbow_joint', 'left_wrist_roll_joint', 'left_wrist_pitch_joint', 'left_wrist_yaw_joint',
+  'right_shoulder_pitch_joint', 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint',
+  'right_elbow_joint', 'right_wrist_roll_joint', 'right_wrist_pitch_joint', 'right_wrist_yaw_joint'
+], 'G1 29-DOF: Isaac Gym / MuJoCo DFS walks each limb to the end');
+eq(namesOf(col(g1, 'mujoco')), namesOf(col(g1, 'isaacgym')),
+  'G1 29-DOF: MuJoCo DFS matches Isaac Gym');
+eq(namesOf(col(g1, 'isaacsim')).slice(0, 6), [
+  'left_hip_pitch_joint', 'right_hip_pitch_joint', 'waist_yaw_joint',
+  'left_hip_roll_joint', 'right_hip_roll_joint', 'waist_roll_joint'
+], 'G1 29-DOF: Isaac Lab BFS interleaves hips and waist by depth');
+eq(namesOf(col(g1, 'isaacsim'))[1], 'right_hip_pitch_joint',
+  'G1 29-DOF: Isaac Lab already differs from MuJoCo at the second joint');
+eq(namesOf(col(g1, 'isaacgym')).length, 29, 'G1 29-DOF: 29 movable joints');
+
 out.push('');
 out.push(failed ? failed + ' failed' : 'ALL PASSED');
 process.stdout.write(out.join('\n') + '\n');

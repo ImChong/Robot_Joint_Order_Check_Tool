@@ -75,7 +75,17 @@ Gazebo 和 ros2_control 不读 MJCF，载入 MJCF 时这两列显示为「不适
 
 ## 内置示例：Unitree G1
 
-内置了 [unitree_ros](https://github.com/unitreerobotics/unitree_ros) 里 G1 29DOF + 灵巧手的**官方 URDF 和官方 MJCF**（`samples/` 下原样保存，BSD-3-Clause，见 [samples/README.md](samples/README.md)）。两个文件分别载入就能看到：
+内置了 [unitree_ros](https://github.com/unitreerobotics/unitree_ros) 里两套官方描述（`samples/` 下原样保存，BSD-3-Clause，见 [samples/README.md](samples/README.md)）：
+
+**G1 29DOF 机身**（`g1_29dof_rev_1_0`，无灵巧手）是 [ParkourFormer](https://arxiv.org/abs/2605.25782) 等人体跑酷策略实际部署的那一台（[项目页](https://mronaldo-gif.github.io/parkourformer.github.io/)）。策略观测是 96 维：
+
+```
+o_t = [ω_a(3), g_p(3), v_c(3), q_p(29), q_v(29), a_{t-1}(29)]
+```
+
+动作也是 29 维。MuJoCo（ParkourFormer 走 Project Instinct 管线）按 DFS 排这 29 个关节，Isaac Sim / Isaac Lab 按 BFS 排 —— 从第 2 个关节起就对不上（`left_hip_roll` vs `right_hip_pitch`）。把 MuJoCo 训好的 29 维向量直接喂给 Isaac Lab 会静默错位。这个 29DOF 的 MJCF 里 `<actuator>` 顺序和关节顺序是一致的。
+
+**G1 29DOF + 灵巧手**（`g1_29dof_with_hand_rev_1_0`）分别载入就能看到：
 
 - 两边的关节顺序是**一致的** —— URDF 按 MuJoCo 规则导入得到的 43 个可动关节顺序，和 MJCF 里的关节顺序完全相同
 - 但 MJCF 的 `<actuator>` 顺序和关节顺序在**右手最后四个电机上对不上**：关节顺序是 `… middle_0, middle_1, index_0, index_1`，执行器顺序是 `… index_0, index_1, middle_0, middle_1`（下标 39–42）。也就是说这四个位置上 `data.ctrl[i]` 驱动的不是你按关节顺序数出来的那个关节
@@ -221,7 +231,7 @@ URDF itself defines no joint order, so each downstream tool imposes its own: MuJ
 
 **Genesis** and **Newton** both land on the same depth-first order as MuJoCo — Genesis because it hands the kinematic structure to MuJoCo's unified parser outright, Newton because `parse_urdf(joint_ordering="dfs")` sorts each node's children by joint id. What differs is what they put *around* your joints: Genesis merges fixed links away by default (`merge_fixed_links=True`) and prepends a synthetic free `root_joint` unless you pass `fixed=True`, while Newton keeps fixed joints as 0-DOF entries that still consume a joint index and always prepends a base joint of its own, so `model.joint_label[0]` is never your first joint. Newton is also the one importer that lets you pick: `joint_ordering="bfs"` reproduces the Isaac Sim column.
 
-**MJCF** is a different question: the XML nesting *is* the body tree, so the file order is the joint id order MuJoCo compiles to, and the interesting mismatch moves elsewhere — `data.ctrl` follows the `<actuator>` block, a separate vector, which gets its own column. The bundled Unitree G1 model is a live example: its official URDF and MJCF agree on joint order, but the MJCF's last four right-hand actuators (indices 39–42) are written `index_0, index_1, middle_0, middle_1` while the joints run `middle_0, middle_1, index_0, index_1`. Bodies with no joint (welds), `<default>` class inheritance, free/ball joints and `<equality>` constraints are all handled; `<include>` is not followed and is reported instead.
+**MJCF** is a different question: the XML nesting *is* the body tree, so the file order is the joint id order MuJoCo compiles to, and the interesting mismatch moves elsewhere — `data.ctrl` follows the `<actuator>` block, a separate vector, which gets its own column. Two official Unitree G1 models are bundled. The **29-DOF body** (`g1_29dof_rev_1_0`, no hands) is what humanoid parkour policies such as [ParkourFormer](https://arxiv.org/abs/2605.25782) actually deploy: a 96-D observation `[ang vel 3, gravity 3, cmd 3, q 29, dq 29, last action 29]` and a 29-D action. MuJoCo (ParkourFormer's Instinct pipeline) walks that tree DFS; Isaac Sim / Isaac Lab walk it BFS — they already disagree at the second joint. That 29-DOF MJCF's actuators match the joints 1-to-1. The **29-DOF with-hands** model is the other live example: its official URDF and MJCF agree on joint order, but the MJCF's last four right-hand actuators (indices 39–42) are written `index_0, index_1, middle_0, middle_1` while the joints run `middle_0, middle_1, index_0, index_1`. Bodies with no joint (welds), `<default>` class inheritance, free/ball joints and `<equality>` constraints are all handled; `<include>` is not followed and is reported instead.
 
 **Root quaternions** get the same treatment, because the base orientation travels with the joint vector and the frameworks split almost evenly on component order. Each rule card carries a colour-coded chip — `w, x, y, z` for MuJoCo, Genesis and MJCF files, `x, y, z, w` for Isaac Gym, Newton, Gazebo messages, PyBullet and ROS — plus the call that prints it. Three things bite: MuJoCo, Genesis and Newton agree on joint order yet **not** on quaternion order (Newton follows Warp's `xyzw`); **Isaac Lab 3.0 switched its default from `wxyz` to `xyzw`** to match PhysX / Warp / Newton, a silent breaking change for hard-coded literals; and Gazebo carries both at once — `x, y, z, w` in messages, `w`-first in `gz::math::Quaterniond`. A URDF has no quaternion at all: `<origin rpy>` is Euler, always in radians, while MJCF defaults to degrees.
 

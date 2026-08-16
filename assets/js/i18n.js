@@ -101,6 +101,7 @@
       'msg.mjcfActuatorSkipped': '{n} 个执行器没有对应到本文件里的关节（驱动 tendon / site / body，或引用了 &lt;include&gt; 里的关节）：{list}。它们同样占用 ctrl 槽位，所以「MuJoCo ctrl」一列的序号会小于真实的 ctrl 下标。',
       'msg.duplicateName': '{n} 个重名的 body / joint：{list}。MuJoCo 编译时会直接报错，这里给重复项加了 <code>#n</code> 后缀以便继续分析。',
       'msg.sampleFetch': '载入示例失败（{file}：{detail}）。这个示例存放在 <code>samples/</code> 目录里、点击时才读取，用 <code>file://</code> 直接打开页面时会被浏览器拦截 —— 请改用本地服务器（<code>python3 -m http.server</code>），或下载 <a href="{url}" target="_blank" rel="noopener">上游原始文件</a> 后拖进来。',
+      'msg.g1Policy29': '这是 ParkourFormer 等人体跑酷策略用的 <b>29 自由度机身</b>（无灵巧手）。策略观测是 96 维：<code>[角速度 3, 投影重力 3, 速度指令 3, 关节位置 29, 关节速度 29, 上一步动作 29]</code>，动作也是 29 维。Isaac Sim / Isaac Lab 的 BFS 和 MuJoCo 的 DFS 在这 29 个关节上从第 2 个起就对不上 —— 把 MuJoCo 训好的向量直接喂给 Isaac Lab 会静默错位。这个 29DOF 的 MJCF 里 <code>&lt;actuator&gt;</code> 顺序和关节顺序是一致的；带灵巧手的示例则在右手最后四个电机上对不上。论文：<a href="https://arxiv.org/abs/2605.25782" target="_blank" rel="noopener">ParkourFormer (arXiv:2605.25782)</a> · <a href="https://mronaldo-gif.github.io/parkourformer.github.io/" target="_blank" rel="noopener">项目页</a>。',
 
       'na.noTag': '无 <ros2_control> 标签',
       'na.noActuator': '无 <actuator>',
@@ -213,6 +214,7 @@
       'msg.mjcfActuatorSkipped': '{n} actuator(s) map to no joint in this file (they drive a tendon / site / body, or a joint from an &lt;include&gt;): {list}. They still occupy a ctrl slot, so the indices in the "MuJoCo ctrl" column run lower than the real ctrl indices.',
       'msg.duplicateName': '{n} duplicate body / joint name(s): {list}. MuJoCo rejects these at compile time; a <code>#n</code> suffix was added here so the rest of the analysis can continue.',
       'msg.sampleFetch': 'Could not load the sample ({file}: {detail}). This one lives in <code>samples/</code> and is fetched on click, which the browser blocks when the page is opened over <code>file://</code> — serve it locally (<code>python3 -m http.server</code>) or download the <a href="{url}" target="_blank" rel="noopener">upstream file</a> and drop it in.',
+      'msg.g1Policy29': 'This is the <b>29-DOF body</b> (no dexterous hands) used by humanoid parkour policies such as ParkourFormer. The policy observation is 96-D: <code>[ang vel 3, projected gravity 3, velocity command 3, joint pos 29, joint vel 29, last action 29]</code>; the action is 29-D as well. Isaac Sim / Isaac Lab BFS and MuJoCo DFS already diverge at the second of these 29 joints — feeding a MuJoCo-trained vector into Isaac Lab silently scrambles it. On this 29-DOF MJCF the <code>&lt;actuator&gt;</code> order matches the joint order; the with-hands sample does not, on the last four right-hand motors. Paper: <a href="https://arxiv.org/abs/2605.25782" target="_blank" rel="noopener">ParkourFormer (arXiv:2605.25782)</a> · <a href="https://mronaldo-gif.github.io/parkourformer.github.io/" target="_blank" rel="noopener">project page</a>.',
 
       'na.noTag': 'no <ros2_control> tag',
       'na.noActuator': 'no <actuator>',

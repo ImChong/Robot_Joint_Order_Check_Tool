@@ -133,6 +133,20 @@
       text: buildRos2Control()
     },
     {
+      id: 'g1_29_urdf',
+      file: 'g1_29dof_rev_1_0.urdf',
+      label: { zh: 'Unitree G1 29DOF（URDF）', en: 'Unitree G1 29-DOF (URDF)' },
+      source: G1 + 'g1_29dof_rev_1_0.urdf',
+      noteKey: 'msg.g1Policy29'
+    },
+    {
+      id: 'g1_29_mjcf',
+      file: 'g1_29dof_rev_1_0.xml',
+      label: { zh: 'Unitree G1 29DOF（MJCF）', en: 'Unitree G1 29-DOF (MJCF)' },
+      source: G1 + 'g1_29dof_rev_1_0.xml',
+      noteKey: 'msg.g1Policy29'
+    },
+    {
       id: 'g1_urdf',
       file: 'g1_29dof_with_hand_rev_1_0.urdf',
       label: { zh: 'Unitree G1 29DOF + 灵巧手（URDF）', en: 'Unitree G1 29-DOF with hands (URDF)' },

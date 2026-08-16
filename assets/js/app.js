@@ -298,6 +298,11 @@
 
       if (m.format === 'mjcf') mjcfMessages(m, msgs);
 
+      var sample = currentSample();
+      if (sample && sample.noteKey) {
+        msgs.push({ level: 'info', html: t(sample.noteKey) });
+      }
+
       var fatal = msgs.some(function (x) { return x.level === 'error'; });
       if (!fatal && m.format !== 'mjcf' && !m.ros2ControlJoints.length) {
         msgs.push({ level: 'info', html: t('msg.noRos2Control') });
