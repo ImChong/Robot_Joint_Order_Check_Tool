@@ -126,6 +126,8 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 }
 .site-mark { width: 28px; height: 28px; color: var(--accent); flex: none; transition: color var(--transition); }
 .site-title-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+/* The name is bilingual by design — it reads the same in either language mode,
+   so it is not run through i18n. The 中文 half drops once the row gets tight. */
 .site-title-text strong { font-size: 1rem; font-weight: 700; }
 .site-title-text small {
   font-size: 12px; color: var(--text-faint); font-weight: 400;
@@ -445,17 +447,18 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 /* ── Responsive ── */
 @media (max-width: 820px) {
   .site-title-text small { display: none; }
+  .site-title-zh { display: none; }
   .opt select { min-width: 0; width: 100%; }
   .opt { width: 100%; }
 }
 @media (max-width: 600px) {
-  /* Title flexes and ellipsises; the toggles stay on the same row. */
+  /* Title wraps to a second line rather than truncating — the English name is
+     too long for a 375px row, and a cut-off name is worse than two lines. Both
+     lines still fit the header's min-height, and the toggles stay on the row. */
   .header-inner { flex-wrap: nowrap; gap: .5rem; min-width: 0; }
   .site-title { flex: 1 1 0; min-width: 0; gap: 8px; }
   .site-title-text { min-width: 0; }
-  .site-title-text strong {
-    font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
+  .site-title-text strong { font-size: .95rem; }
   .header-right { flex: 0 0 auto; gap: .35rem; margin-left: auto; }
   .github-link { font-size: .78rem; white-space: nowrap; }
   .lang-toggle, .theme-toggle { min-width: 32px; padding: 0 .45rem; }
