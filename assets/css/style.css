@@ -196,6 +196,8 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .card-title { font-size: 15px; font-weight: 650; margin: 0 0 4px; }
 .card-hint { font-size: 13px; color: var(--text-dim); margin: 0 0 14px; }
 .sub { font-size: 13px; font-weight: 650; color: var(--text-dim); margin: 0 0 8px; }
+.sub-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+.sub-head .sub { margin: 0; }
 
 /* ── Intro ── */
 .intro { margin: 24px 0 6px; }
@@ -374,6 +376,10 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
   border: 1px solid var(--border); font-size: 12.5px; line-height: 1.65;
   overflow: auto; max-height: 460px;
 }
+/* Expanded: drop the cap so the whole tree is on the page — a 40-joint humanoid
+   runs well past 460px, and reading it inside a scroll box loses the shape.
+   overflow stays auto so long branch lines still scroll sideways. */
+.tree.is-expanded { max-height: none; }
 .tree .t-joint { color: var(--accent); }
 .tree .t-fixed { color: var(--text-faint); }
 .tree .t-type { color: var(--text-faint); }

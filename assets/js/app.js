@@ -764,6 +764,35 @@
   }
 
   /* ── Tree & joint list ─────────────────────────────────────────── */
+
+  /* Sticks across reloads and language switches: someone who expanded the tree
+     once is reading it that way, and re-collapsing on every parse is a fight. */
+  var treeExpanded = false;
+
+  function syncTreeExpand() {
+    var pre = $('#treeOut');
+    var btn = $('#treeExpand');
+    // Offer the toggle only when the cap actually clips this tree, which is a
+    // question about the collapsed box — so measure there, then restore.
+    pre.classList.remove('is-expanded');
+    var clipped = pre.scrollHeight > pre.clientHeight + 1;
+    pre.classList.toggle('is-expanded', treeExpanded);
+    btn.hidden = !clipped;
+    var key = treeExpanded ? 'tree.collapse' : 'tree.expand';
+    btn.setAttribute('data-i18n', key);
+    btn.textContent = t(key);
+  }
+
+  function initTree() {
+    $('#treeExpand').addEventListener('click', function () {
+      treeExpanded = !treeExpanded;
+      syncTreeExpand();
+      // Collapsing from far down the tree would otherwise leave the viewport
+      // parked below the box, on whatever follows it.
+      if (!treeExpanded) $('#treeOut').scrollIntoView({ block: 'nearest' });
+    });
+  }
+
   function renderTreeView() {
     var lines = URDF.renderTree(state.model, state.tree, { siblingOrder: state.opts.siblingOrder });
     $('#treeOut').innerHTML = lines.map(function (l) {
@@ -778,6 +807,7 @@
       return esc(l.text) + '<span class="' + cls + '">' + esc(l.joint) + '</span>' +
              '<span class="t-type"> [' + esc(l.type) + ']</span> → ' + esc(l.child);
     }).join('\n');
+    syncTreeExpand();
   }
 
   function renderJointsTable() {
@@ -834,6 +864,7 @@
   function init() {
     initTheme();
     initInput();
+    initTree();
     initLang();
     global.I18N.applyStatic();
   }
